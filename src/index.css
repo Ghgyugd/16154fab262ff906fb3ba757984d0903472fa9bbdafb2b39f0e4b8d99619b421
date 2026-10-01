@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+@theme {
+  --color-corporate-cloud: #F7F9FC;
+  --color-corporate-navy: #0B2545;
+  --color-corporate-blue: #1D4ED8;
+  --color-corporate-steel: #8DA9C4;
+
+  --color-cloud: #F7F9FC;
+  --color-navy: #0B2545;
+  --color-royal: #1D4ED8;
+  --color-steel: #8DA9C4;
+
+  --color-canvas: #F7F9FC;
+  --color-surface-base: #FFFFFF;
+  --color-surface-muted: #F0F4F8;
+  --color-surface-navy: #0B2545;
+  --color-border-subtle: #E2E8F0;
+  --color-border-steel: #8DA9C4;
+  --color-border-strong: #CBD5E1;
+  --color-text-primary: #0B2545;
+  --color-text-secondary: #334E68;
+  --color-text-muted: #627D98;
+  --color-accent-primary: #0B2545;
+  --color-accent-blue: #1D4ED8;
+  --color-accent-steel: #8DA9C4;
+  --color-accent-emerald: #059669;
+  --color-accent-amber: #D97706;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-cursive: 'Caveat', cursive;
+}
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --font-cursive: 'Caveat', cursive;
+  }
+  
+  html {
+    background-color: #F7F9FC;
+    color: #0B2545;
+    font-family: var(--font-sans);
+    scroll-behavior: auto;
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+  }
+
+  body {
+    background-color: #F7F9FC;
+    color: #0B2545;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+  }
+
+  /* Lenis Native CSS */
+  html.lenis, html.lenis body {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+
+  .lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+  }
+
+  .lenis.lenis-stopped {
+    overflow: hidden;
+  }
+
+  .lenis.lenis-smooth iframe {
+    pointer-events: none;
+  }
+
+  body {
+    background-color: #F7F9FC;
+    color: #0B2545;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    color: #0B2545;
+  }
+}
+
+/* Precision Glassmorphic Cards with Deep Multi-Layered Shadows */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 
+    0 16px 40px -10px rgba(11, 37, 69, 0.08), 
+    0 4px 16px rgba(11, 37, 69, 0.03), 
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.craft-card {
+  background-color: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 24px;
+  box-shadow: 
+    0 1px 2px rgba(11, 37, 69, 0.03),
+    0 8px 24px -4px rgba(11, 37, 69, 0.06),
+    0 20px 48px -12px rgba(29, 78, 216, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.craft-card:hover {
+  border-color: rgba(29, 78, 216, 0.45);
+  box-shadow: 
+    0 2px 4px rgba(11, 37, 69, 0.04),
+    0 16px 36px -6px rgba(11, 37, 69, 0.09),
+    0 28px 64px -12px rgba(29, 78, 216, 0.08);
+  transform: translateY(-2px);
+}
+
+.font-cursive {
+  font-family: 'Caveat', cursive;
+}
+
+@keyframes laserScan {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+

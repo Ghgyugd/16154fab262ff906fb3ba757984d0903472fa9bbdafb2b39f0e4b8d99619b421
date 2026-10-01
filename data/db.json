@@ -1,0 +1,251 @@
+{
+  "users": {
+    "user_demo_free": {
+      "id": "user_demo_free",
+      "email": "demo-user@resumesetu.ai",
+      "plan": "free",
+      "credits_remaining": 1,
+      "razorpay_subscription_id": null,
+      "created_at": "2026-09-23T12:25:13.356Z",
+      "isAdmin": true,
+      "role": "ADMIN",
+      "updatedAt": "2026-10-01T03:41:15.197Z",
+      "isBanned": false
+    },
+    "user_demo_pro": {
+      "id": "user_demo_pro",
+      "email": "pro-member@resumesetu.ai",
+      "plan": "pro",
+      "credits_remaining": 9999,
+      "razorpay_subscription_id": "sub_test_pro_123456",
+      "created_at": "2026-09-23T12:25:13.356Z"
+    },
+    "LZjBHlabaVUqSmc7ZqcsVMwMuL63": {
+      "id": "LZjBHlabaVUqSmc7ZqcsVMwMuL63",
+      "email": "eren.yegear.titan@gmail.com",
+      "authProviderId": null,
+      "currentPlan": "FREE",
+      "monthlyScansUsed": 0,
+      "creditResetDate": "2026-10-30T15:26:48.741Z",
+      "createdAt": "2026-09-30T15:26:48.741Z"
+    },
+    "usr_owner_anjana": {
+      "id": "usr_owner_anjana",
+      "email": "anjana2771patel@gmail.com",
+      "authProviderId": null,
+      "currentPlan": "PRO",
+      "monthlyScansUsed": 0,
+      "creditResetDate": "2026-10-30T16:01:15.117Z",
+      "isAdmin": true,
+      "role": "OWNER",
+      "createdAt": "2026-09-30T16:01:15.117Z",
+      "updatedAt": "2026-10-01T03:32:48.173Z"
+    }
+  },
+  "resumes": {},
+  "jobScans": {
+    "chk_c21d517e-d961-4b36-b634-bd39e077fd8c": {
+      "id": "chk_c21d517e-d961-4b36-b634-bd39e077fd8c",
+      "userId": "user_demo_free",
+      "jobTitle": "Senior Product Manager leading crossfunctional teams roadm",
+      "companyName": "Target Company",
+      "jobDescriptionText": "Senior Product Manager leading cross-functional teams, roadmap definition, user research, cohort retention analysis, and SaaS metrics.",
+      "matchScore": 81,
+      "missingKeywords": [
+        "Cloud Infrastructure",
+        "Cross-functional Collaboration",
+        "KPI Optimization"
+      ],
+      "strengths": [
+        "Strong foundational domain expertise",
+        "Clear career progression",
+        "Demonstrated problem-solving capabilities"
+      ],
+      "summary": "The resume demonstrates relevant core capabilities, achieving an ATS match of 81%. To maximize interview conversion, explicitly integrate the missing keyword terms directly into your recent experience and technical skills sections.",
+      "starSuggestions": null,
+      "tailoredResumeText": "PROFESSIONAL SUMMARY\nHighly accomplished professional with demonstrated track record in delivering high-impact solutions. Strategically tailored for the target role with emphasized mastery in Cloud Infrastructure, Cross-functional Collaboration, KPI Optimization.\n\nCORE TECHNICAL COMPETENCIES\n- Core Technologies: Cloud Infrastructure, Cross-functional Collaboration, KPI Optimization, Full Stack Architecture\n- Methodologies: Agile / Scrum, Cross-Functional Leadership, Rapid Prototyping\n- Cloud & Infrastructure: Scalable Cloud Systems, CI/CD, Reliability Engineering\n\nPROFESSIONAL EXPERIENCE\nSenior Specialist | Tech Solutions\n- Architected enterprise-grade systems integrating Cloud Infrastructure, driving a 38% improvement in deployment velocity.\n- Spearheaded optimization initiatives resulting in 99.9% uptime and reduced operational latency.\n- Mentored junior engineers, established best practices in testing, and delivered high-impact deliverables ahead of schedule.\n\nRelevant Experience | Enterprise Dynamics\n- Collaborated across product, design, and engineering teams to deploy client-facing features adopted by 100K+ monthly active users.\n- Implemented robust monitoring and automated pipelines, reducing defect leakage by 45%.\n\nEDUCATION & CREDENTIALS\nBachelor of Science | Computer Science & Engineering",
+      "coverLetterText": "Dear Hiring Team,\n\nI am writing to express my enthusiastic interest in this role. Having closely reviewed the core requirements and strategic objectives of the position, I am confident that my background in delivering scalable solutions, coupled with hands-on expertise in Cloud Infrastructure and Cross-functional Collaboration, aligns directly with your team's immediate priorities.\n\nThroughout my career, I have focused on translating ambitious product goals into dependable, high-performance systems. At my current organization, I led pivotal initiatives that significantly increased efficiency while maintaining rigorous engineering standards. Integrating Cloud Infrastructure into production workflows allowed our team to ship faster and elevate user satisfaction.\n\nI would welcome the opportunity to discuss how my skill set and proactive approach can contribute directly to your team's upcoming milestones. Thank you for your time and consideration.\n\nSincerely,\nCandidate",
+      "createdAt": "2026-09-24T12:45:40.559Z"
+    },
+    "chk_e2850a0c-ff1a-4926-bc27-13db149bd8c1": {
+      "id": "chk_e2850a0c-ff1a-4926-bc27-13db149bd8c1",
+      "userId": "user_demo_free",
+      "jobTitle": "Senior Full Stack Engineer proficient with React TypeScript",
+      "companyName": "Target Company",
+      "jobDescriptionText": "Senior Full Stack Engineer proficient with React, TypeScript, Node.js, GraphQL, AWS Lambda, PostgreSQL to build scalable systems.",
+      "matchScore": 94,
+      "missingKeywords": [
+        "Cloud Infrastructure",
+        "Cross-functional Collaboration",
+        "KPI Optimization"
+      ],
+      "strengths": [
+        "Demonstrated hands-on experience in REACT",
+        "Demonstrated hands-on experience in TYPESCRIPT",
+        "Demonstrated hands-on experience in NODE.JS",
+        "Demonstrated hands-on experience in SQL"
+      ],
+      "summary": "The resume demonstrates relevant core capabilities, achieving an ATS match of 94%. To maximize interview conversion, explicitly integrate the missing keyword terms directly into your recent experience and technical skills sections.",
+      "starSuggestions": null,
+      "tailoredResumeText": "PROFESSIONAL SUMMARY\nHighly accomplished professional with demonstrated track record in delivering high-impact solutions. Strategically tailored for the target role with emphasized mastery in Cloud Infrastructure, Cross-functional Collaboration, KPI Optimization.\n\nCORE TECHNICAL COMPETENCIES\n- Core Technologies: Cloud Infrastructure, Cross-functional Collaboration, KPI Optimization, Full Stack Architecture\n- Methodologies: Agile / Scrum, Cross-Functional Leadership, Rapid Prototyping\n- Cloud & Infrastructure: Scalable Cloud Systems, CI/CD, Reliability Engineering\n\nPROFESSIONAL EXPERIENCE\nSenior Specialist | Tech Solutions\n- Architected enterprise-grade systems integrating Cloud Infrastructure, driving a 38% improvement in deployment velocity.\n- Spearheaded optimization initiatives resulting in 99.9% uptime and reduced operational latency.\n- Mentored junior engineers, established best practices in testing, and delivered high-impact deliverables ahead of schedule.\n\nRelevant Experience | Enterprise Dynamics\n- Collaborated across product, design, and engineering teams to deploy client-facing features adopted by 100K+ monthly active users.\n- Implemented robust monitoring and automated pipelines, reducing defect leakage by 45%.\n\nEDUCATION & CREDENTIALS\nBachelor of Science | Computer Science & Engineering",
+      "coverLetterText": "Dear Hiring Team,\n\nI am writing to express my enthusiastic interest in this role. Having closely reviewed the core requirements and strategic objectives of the position, I am confident that my background in delivering scalable solutions, coupled with hands-on expertise in Cloud Infrastructure and Cross-functional Collaboration, aligns directly with your team's immediate priorities.\n\nThroughout my career, I have focused on translating ambitious product goals into dependable, high-performance systems. At my current organization, I led pivotal initiatives that significantly increased efficiency while maintaining rigorous engineering standards. Integrating Cloud Infrastructure into production workflows allowed our team to ship faster and elevate user satisfaction.\n\nI would welcome the opportunity to discuss how my skill set and proactive approach can contribute directly to your team's upcoming milestones. Thank you for your time and consideration.\n\nSincerely,\nCandidate",
+      "createdAt": "2026-09-24T12:22:32.765Z"
+    }
+  },
+  "applications": {},
+  "llmConfigs": {
+    "llm_groq_llama70b": {
+      "id": "llm_groq_llama70b",
+      "name": "Groq Llama-3.3-70b Versatile",
+      "provider": "groq",
+      "modelId": "llama-3.3-70b-versatile",
+      "apiKeyEnv": "GROQ_API_KEY",
+      "contextWindow": "128k",
+      "latencyTier": "sub-second",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_gemini_25_flash": {
+      "id": "llm_gemini_25_flash",
+      "name": "Google Gemini 2.5 Flash",
+      "provider": "gemini",
+      "modelId": "gemini-2.5-flash",
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "contextWindow": "1M",
+      "latencyTier": "sub-second",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_gemini_15_pro": {
+      "id": "llm_gemini_15_pro",
+      "name": "Google Gemini 1.5 Pro",
+      "provider": "gemini",
+      "modelId": "gemini-1.5-pro",
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "contextWindow": "2M",
+      "latencyTier": "deep-reasoning",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_openai_gpt4o": {
+      "id": "llm_openai_gpt4o",
+      "name": "OpenAI GPT-4o",
+      "provider": "openai",
+      "modelId": "gpt-4o",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "contextWindow": "128k",
+      "latencyTier": "standard",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_anthropic_claude35": {
+      "id": "llm_anthropic_claude35",
+      "name": "Anthropic Claude 3.5 Sonnet",
+      "provider": "anthropic",
+      "modelId": "claude-3-5-sonnet-20241022",
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "contextWindow": "200k",
+      "latencyTier": "deep-reasoning",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_deepseek_v3": {
+      "id": "llm_deepseek_v3",
+      "name": "DeepSeek V3 Chat / Reasoner",
+      "provider": "custom",
+      "modelId": "deepseek-chat",
+      "apiKeyEnv": "DEEPSEEK_API_KEY",
+      "contextWindow": "64k",
+      "latencyTier": "standard",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_a6f86cbe": {
+      "name": "Llama 3.1 8B Instant",
+      "provider": "groq",
+      "modelId": "llama-3.1-8b-instant",
+      "contextWindow": "128k",
+      "latencyTier": "sub-second",
+      "apiKeyEnv": "API_KEY",
+      "enabled": true,
+      "id": "llm_a6f86cbe",
+      "createdAt": "2026-10-01T03:41:24.841Z"
+    }
+  },
+  "taskBindings": {
+    "score": {
+      "task": "score",
+      "taskLabel": "ATS Match Calibration & Skill Delta Scoring",
+      "primaryModelId": "llm_a6f86cbe",
+      "fallbackModelId": "llm_gemini_25_flash"
+    },
+    "tailor": {
+      "task": "tailor",
+      "taskLabel": "Targeted Resume Alignment & Recruiter Rubrics",
+      "primaryModelId": "llm_gemini_15_pro",
+      "fallbackModelId": "llm_groq_llama70b"
+    },
+    "cover_letter": {
+      "task": "cover_letter",
+      "taskLabel": "Executive Cover Letter Synthesis",
+      "primaryModelId": "llm_gemini_25_flash",
+      "fallbackModelId": "llm_openai_gpt4o"
+    },
+    "star_bullet": {
+      "task": "star_bullet",
+      "taskLabel": "STAR Metric & Impact Statement Suggestions",
+      "primaryModelId": "llm_groq_llama70b",
+      "fallbackModelId": "llm_gemini_25_flash"
+    },
+    "resume_parse": {
+      "task": "resume_parse",
+      "taskLabel": "Resume Entity & Work History Parsing",
+      "primaryModelId": "llm_gemini_25_flash",
+      "fallbackModelId": "llm_groq_llama70b"
+    }
+  },
+  "systemSettings": {
+    "promptInjectionShield": true,
+    "maxUploadSizeMb": 5,
+    "freeTierMonthlyLimit": 3,
+    "proPriceInr": 249,
+    "rateLimitWindowDays": 30,
+    "maintenanceMode": false,
+    "allowedFileExtensions": [
+      ".pdf",
+      ".docx"
+    ]
+  },
+  "securityLogs": [
+    {
+      "id": "sec_001",
+      "timestamp": "2026-10-01T00:40:46.567Z",
+      "event": "ADMIN_LOGIN",
+      "severity": "info",
+      "details": "System Owner authenticated via Google Workspace (anjana2771patel@gmail.com).",
+      "actorEmail": "anjana2771patel@gmail.com"
+    },
+    {
+      "id": "sec_002",
+      "timestamp": "2026-10-01T01:40:46.567Z",
+      "event": "RATE_LIMIT_HIT",
+      "severity": "info",
+      "details": "Client IP rate-limiter verified: all active incoming connections within healthy thresholds."
+    },
+    {
+      "id": "sec_003",
+      "timestamp": "2026-10-01T03:10:46.567Z",
+      "event": "LLM_ROUTED",
+      "severity": "info",
+      "details": "Dynamic Task Router dispatched job to Groq Llama-3.3-70b (Latency 340ms)."
+    },
+    {
+      "event": "ROLE_CHANGED",
+      "severity": "warning",
+      "details": "User demo-user@resumesetu.ai role updated to ADMIN (isAdmin: true).",
+      "targetUserId": "user_demo_free",
+      "id": "sec_1c032315",
+      "timestamp": "2026-10-01T03:41:00.504Z"
+    }
+  ]
+}

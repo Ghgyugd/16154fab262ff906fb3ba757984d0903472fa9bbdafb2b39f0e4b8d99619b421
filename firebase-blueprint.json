@@ -1,0 +1,161 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with plan quota and subscription status",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name or username"
+        },
+        "currentPlan": {
+          "type": "string",
+          "enum": ["FREE", "PRO"],
+          "description": "Active tier plan"
+        },
+        "monthlyScansUsed": {
+          "type": "number",
+          "description": "Number of resume ATS scans performed in current 30-day window"
+        },
+        "creditResetDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when monthly free scans reset"
+        },
+        "isAnonymous": {
+          "type": "boolean",
+          "description": "Whether user is an anonymous guest"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["email", "currentPlan", "monthlyScansUsed"]
+    },
+    "Resume": {
+      "title": "Resume",
+      "description": "Parsed and encrypted resume record",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase UID of resume owner"
+        },
+        "originalFileName": {
+          "type": "string",
+          "description": "Original file name of uploaded PDF or DOCX"
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "URL or storage reference"
+        },
+        "parsedText": {
+          "type": "string",
+          "description": "Extracted text content"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Upload timestamp"
+        }
+      },
+      "required": ["userId", "originalFileName", "parsedText"]
+    },
+    "JobScan": {
+      "title": "JobScan",
+      "description": "ATS compatibility analysis between resume and target job",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase UID of candidate"
+        },
+        "jobTitle": {
+          "type": "string",
+          "description": "Target job title"
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Target hiring company"
+        },
+        "jobDescriptionText": {
+          "type": "string",
+          "description": "Target job posting description"
+        },
+        "matchScore": {
+          "type": "number",
+          "description": "Deterministic ATS match score 0-100"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Scan timestamp"
+        }
+      },
+      "required": ["userId", "matchScore"]
+    },
+    "ApplicationTracker": {
+      "title": "ApplicationTracker",
+      "description": "Job application progress item",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase UID of candidate"
+        },
+        "company": {
+          "type": "string",
+          "description": "Company name"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role applied for"
+        },
+        "matchScore": {
+          "type": "number",
+          "description": "ATS score at time of application"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["APPLIED", "INTERVIEW", "OFFER", "REJECTED"],
+          "description": "Standardized status"
+        },
+        "appliedDate": {
+          "type": "string",
+          "description": "Date applied in YYYY-MM-DD"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Candidate notes"
+        }
+      },
+      "required": ["userId", "company", "role"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and subscription state"
+    },
+    "/resumes/{resumeId}": {
+      "schema": "Resume",
+      "description": "User resume documents"
+    },
+    "/jobScans/{scanId}": {
+      "schema": "JobScan",
+      "description": "ATS scan calibration records"
+    },
+    "/applications/{applicationId}": {
+      "schema": "ApplicationTracker",
+      "description": "Candidate job tracking pipeline"
+    }
+  }
+}

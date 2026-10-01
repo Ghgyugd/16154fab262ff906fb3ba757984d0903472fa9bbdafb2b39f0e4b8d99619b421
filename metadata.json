@@ -1,0 +1,6 @@
+{
+  "name": "ResumeSetu — AI Resume Matcher & Tailor",
+  "description": "Upload your resume and paste a job description to get an instant match score, missing keywords, tailored resume, and custom cover letter.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

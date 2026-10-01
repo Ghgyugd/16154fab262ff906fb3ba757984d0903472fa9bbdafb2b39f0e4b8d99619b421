@@ -1,0 +1,91 @@
+// Prisma Schema for ResumeSetu PostgreSQL Database
+// Production-grade MicroSaaS Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum ApplicationStatus {
+  APPLIED
+  INTERVIEW
+  OFFER
+  REJECTED
+}
+
+model User {
+  id               String               @id @default(cuid())
+  email            String               @unique
+  authProviderId   String?              @unique
+  currentPlan      Plan                 @default(FREE)
+  monthlyScansUsed Int                  @default(0)
+  creditResetDate  DateTime             @default(now())
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  resumes          Resume[]
+  jobScans         JobScan[]
+  applications     ApplicationTracker[]
+
+  @@index([email])
+  @@index([authProviderId])
+}
+
+model Resume {
+  id                   String   @id @default(cuid())
+  userId               String
+  originalFileName     String
+  fileUrl              String
+  parsedText           String   @db.Text
+  starFormattedBullets Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model JobScan {
+  id                 String   @id @default(cuid())
+  userId             String
+  jobTitle           String?
+  companyName        String?
+  jobDescriptionText String   @db.Text
+  matchScore         Float
+  missingKeywords    String[]
+  starSuggestions    Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ApplicationTracker {
+  id          String            @id @default(cuid())
+  userId      String
+  company     String
+  role        String
+  matchScore  Float
+  status      ApplicationStatus @default(APPLIED)
+  appliedDate DateTime          @default(now())
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
