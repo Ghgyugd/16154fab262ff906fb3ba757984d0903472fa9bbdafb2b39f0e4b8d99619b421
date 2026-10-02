@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { ScoreGauge } from '../components/ScoreGauge.js';
+import { PRO_PRICE_INR, FREE_SCAN_LIMIT } from '../config.js';
 import { ResumeCheck, TailoredResult } from '../types/index.js';
 
 interface DashboardProps {
@@ -42,6 +43,12 @@ interface TrackedJob {
   stage: 'Saved' | 'Applied' | 'Tech Screen' | 'Final Round' | 'Offer';
   dateApplied: string;
   notes: string;
+}
+
+interface StarSuggestion {
+  original: string;
+  suggestion: string;
+  keyword: string;
 }
 
 const PRESET_JOB_DESCRIPTIONS = [
@@ -86,35 +93,68 @@ Qualifications:
   },
 ];
 
-const INITIAL_TRACKED_JOBS: TrackedJob[] = [
-  {
-    id: 'tr-1',
-    company: 'Fintech Scaleup',
-    role: 'Senior Full Stack Engineer',
-    matchScore: 84,
-    stage: 'Tech Screen',
-    dateApplied: '2026-09-24',
-    notes: 'System design screening round completed.',
-  },
-  {
-    id: 'tr-2',
-    company: 'CloudMetrics Inc',
-    role: 'Staff Infrastructure Lead',
-    matchScore: 78,
-    stage: 'Final Round',
-    dateApplied: '2026-09-22',
-    notes: 'Executive leadership interview round scheduled.',
-  },
-  {
-    id: 'tr-3',
-    company: 'B2B SaaS Unicorn',
-    role: 'Product Operations Director',
-    matchScore: 91,
-    stage: 'Offer',
-    dateApplied: '2026-09-20',
-    notes: 'Formal offer package received.',
-  },
-];
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Minimal dialog accessibility: Escape closes, focus moves inside on open and
+ * returns to the invoking element on close, and Tab is trapped in the panel so
+ * keyboard users cannot tab into the inert page behind the overlay.
+ */
+const useDialogA11y = (isOpen: boolean, onClose: () => void) => {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => {
+      const target = restoreFocusRef.current;
+      if (target && document.body.contains(target)) target.focus();
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusables = Array.from(
+        panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+      ).filter((el) => el.getClientRects().length > 0);
+      if (focusables.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey) {
+        if (!active || active === first || !panel.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !panel.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  return panelRef;
+};
 
 export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
   const { user, refreshUser } = useAuth();
@@ -137,11 +177,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
   const [currentCheck, setCurrentCheck] = useState<ResumeCheck | null>(null);
   const [tailoredData, setTailoredData] = useState<TailoredResult | null>(null);
   const [historyChecks, setHistoryChecks] = useState<ResumeCheck[]>([]);
+  // STAR guidance arrives on the `analysis` payload of /api/check, not on the
+  // persisted `check` row, so it is held separately and reset on every new scan.
+  const [starSuggestions, setStarSuggestions] = useState<StarSuggestion[]>([]);
 
   // Application Tracker State
   const [trackedJobs, setTrackedJobs] = useState<TrackedJob[]>(() => {
     const saved = localStorage.getItem('resumesetu_tracked_jobs');
-    return saved ? JSON.parse(saved) : INITIAL_TRACKED_JOBS;
+    // Starts empty: seeding fake applications would show a user rows they never created.
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      const list: TrackedJob[] = Array.isArray(parsed) ? parsed : [];
+      // 'tr-1'..'tr-3' were a demo seed shipped to every account. Drop them so
+      // returning users are not still shown applications they never applied to.
+      return list.filter((job) => !/^tr-[123]$/.test(String(job?.id)));
+    } catch {
+      return [];
+    }
   });
   const [showAddJobModal, setShowAddJobModal] = useState(false);
   const [newJobCompany, setNewJobCompany] = useState('');
@@ -157,7 +210,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
+  const addJobModalRef = useDialogA11y(showAddJobModal, () => setShowAddJobModal(false));
+
   const isPro = user?.plan === 'pro';
+
+  // Every figure rendered on the Intelligence tab is derived from these, so the
+  // tab can never show a number the engine did not actually produce.
+  const matchedKeywordCount = currentCheck?.strengths?.length || 0;
+  const missingKeywordCount = currentCheck?.missing_keywords?.length || 0;
+  const trackedKeywordCount = matchedKeywordCount + missingKeywordCount;
+  const matchedShare =
+    trackedKeywordCount > 0 ? Math.round((matchedKeywordCount / trackedKeywordCount) * 100) : 0;
+  const missingShare = trackedKeywordCount > 0 ? 100 - matchedShare : 0;
+  const scoredScans = historyChecks.filter((c) => typeof c.match_score === 'number');
+  const averageMatchScore = scoredScans.length
+    ? Math.round(scoredScans.reduce((acc, c) => acc + (c.match_score || 0), 0) / scoredScans.length)
+    : null;
+  const bestMatchScore = scoredScans.length
+    ? Math.max(...scoredScans.map((c) => c.match_score || 0))
+    : null;
 
   useEffect(() => {
     localStorage.setItem('resumesetu_tracked_jobs', JSON.stringify(trackedJobs));
@@ -168,9 +239,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
   }, [user?.id]);
 
   const fetchHistory = async () => {
+    if (!user?.id || user.isAnonymous || user.id.startsWith('guest_')) return;
     try {
-      const url = user?.id ? `/api/history?userId=${encodeURIComponent(user.id)}` : '/api/history';
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await fetch('/api/history', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setHistoryChecks(data.checks || []);
@@ -206,6 +277,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user?.id || user.isAnonymous || user.id.startsWith('guest_')) {
+      setErrorMessage('Your account is not connected yet. Please sign in again before scanning.');
+      return;
+    }
     if (!jobDescription.trim()) {
       setErrorMessage('Please paste or select a target job description.');
       return;
@@ -219,13 +294,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
     setErrorMessage(null);
     setCurrentCheck(null);
     setTailoredData(null);
+    setStarSuggestions([]);
     setMobileWorkspaceTab('results');
 
     try {
       const formData = new FormData();
       formData.append('job_description', jobDescription);
-      formData.append('userId', user?.id || 'user_demo_free');
-
       if (resumeFile) {
         formData.append('resume', resumeFile);
       } else if (sampleType) {
@@ -249,6 +323,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
       }
 
       setCurrentCheck(data.check);
+      setStarSuggestions(
+        Array.isArray(data.analysis?.starSuggestions)
+          ? data.analysis.starSuggestions
+          : Array.isArray(data.analysis?.star_suggestions)
+          ? data.analysis.star_suggestions
+          : []
+      );
       if (data.tailored) {
         setTailoredData(data.tailored);
       }
@@ -618,7 +699,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
 
                     {/* Drag and Drop Dropzone */}
                     <div
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Upload resume document. Activate to browse for a PDF or DOCX file, or drag and drop a file into this area."
+                      aria-busy={loading}
                       onClick={() => fileInputRef.current?.click()}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+                        // Space would otherwise scroll the page while the file picker opens.
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                       onDragOver={(e) => {
                         e.preventDefault();
                         setIsDragging(true);
@@ -638,7 +729,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
                           setErrorMessage(null);
                         }
                       }}
-                      className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                      className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]/50 ${
                         isDragging
                           ? 'border-[#1D4ED8] bg-blue-50/50'
                           : resumeFile || sampleType
@@ -646,12 +737,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
                           : 'border-slate-200 hover:border-[#1D4ED8]/60 bg-slate-50/50 hover:bg-blue-50/20'
                       }`}
                     >
+                      {/* sr-only (not display:none) keeps the input reachable by keyboard and screen readers */}
                       <input
                         ref={fileInputRef}
                         type="file"
                         accept=".pdf,.docx,.doc"
                         onChange={handleFileChange}
-                        className="hidden"
+                        aria-label="Resume file"
+                        className="sr-only"
                       />
 
                       {resumeFile ? (
@@ -684,7 +777,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
 
                     <p className="mt-2.5 text-xs text-[#627D98] flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Your resume is processed ephemerally and never shared or sold.</span>
+                      <span>
+                        Your resume is stored encrypted in your own vault and never shared or sold. You
+                        can delete it at any time.
+                      </span>
                     </p>
                   </div>
 
@@ -730,7 +826,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
                       <span>Unlock Unlimited ATS Tailoring</span>
                     </span>
                     <p className="text-[11px] text-[#334E68]">
-                      Unlimited tailored Word (.docx) downloads & cover letters for ₹249/month.
+                      Free plan includes {FREE_SCAN_LIMIT} scans per month. Pro adds unlimited tailored
+                      Word (.docx) downloads & cover letters for ₹{PRO_PRICE_INR}/month.
                     </p>
                   </div>
 
@@ -739,7 +836,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
                     onClick={onOpenPaywall}
                     className="py-2.5 px-4 rounded-full text-white bg-gradient-to-r from-[#1D4ED8] to-[#2563EB] font-bold text-xs uppercase tracking-wider shadow-xs hover:shadow-md transition-all cursor-pointer shrink-0"
                   >
-                    Upgrade ₹249
+                    Upgrade ₹{PRO_PRICE_INR}
                   </button>
                 </div>
               )}
@@ -853,11 +950,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
                       </div>
                       <div className="p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-center">
                         <span className="text-[10px] uppercase font-bold text-[#627D98] block">OCR Health</span>
-                        <span className="text-sm font-extrabold text-emerald-600">98% Verified</span>
+                        <span className="text-sm font-extrabold text-[#627D98]">Not measured</span>
                       </div>
                       <div className="p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-center">
-                        <span className="text-[10px] uppercase font-bold text-[#627D98] block">Structure</span>
-                        <span className="text-sm font-extrabold text-[#1D4ED8]">Single Column</span>
+                        <span className="text-[10px] uppercase font-bold text-[#627D98] block">Export Format</span>
+                        <span className="text-sm font-extrabold text-[#1D4ED8]">Single-Column .docx</span>
                       </div>
                     </div>
 
@@ -946,53 +1043,56 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
                       </div>
 
                       <div className="space-y-2.5">
-                        {(currentCheck.missing_keywords.slice(0, 2).map((kw) => ({
-                          original: `Developed software features and integrated APIs for web platform workflows.`,
-                          rewritten: `Architected high-throughput microservices integrating ${kw}, reducing production API latency by 38% under 20k RPM load.`,
-                          keyword: kw,
-                        }))).map((item, idx) => (
-                          <div key={idx} className="bg-white/95 p-3.5 rounded-xl border border-blue-100 shadow-2xs space-y-2">
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="font-bold text-[#627D98] flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                <span>Original Resume Bullet</span>
-                              </span>
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-[#1D4ED8] border border-blue-200">
-                                Injected Token: {item.keyword}
-                              </span>
-                            </div>
-                            <p className="text-xs text-[#627D98] line-through italic pl-2.5 border-l-2 border-slate-200">
-                              {item.original}
-                            </p>
+                        {starSuggestions.length === 0 ? (
+                          <p className="text-xs text-[#334E68] italic bg-white/70 border border-blue-100 rounded-xl p-3.5">
+                            No STAR guidance was returned for this scan. Every required keyword in the job
+                            description is already evidenced by your resume, so there is nothing to rewrite.
+                          </p>
+                        ) : (
+                          starSuggestions.map((item, idx) => (
+                            <div key={idx} className="bg-white/95 p-3.5 rounded-xl border border-blue-100 shadow-2xs space-y-2">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-[#627D98] flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                  <span>Bullet in Your Resume</span>
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-[#1D4ED8] border border-blue-200">
+                                  Injected Token: {item.keyword}
+                                </span>
+                              </div>
+                              <p className="text-xs text-[#627D98] line-through italic pl-2.5 border-l-2 border-slate-200">
+                                {item.original}
+                              </p>
 
-                            <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-100">
-                              <span className="font-bold text-[#1D4ED8] flex items-center gap-1.5">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>STAR Optimized Bullet (Situation, Task, Action, Result)</span>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => copyBullet(item.rewritten, idx)}
-                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#0B2545] bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
-                              >
-                                {copiedBulletIdx === idx ? (
-                                  <>
-                                    <CheckCheck className="w-3 h-3 text-emerald-600" />
-                                    <span className="text-emerald-700">Copied</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="w-3 h-3 text-[#627D98]" />
-                                    <span>Copy Bullet</span>
-                                  </>
-                                )}
-                              </button>
+                              <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-100">
+                                <span className="font-bold text-[#1D4ED8] flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>STAR Guidance (Situation, Task, Action, Result)</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => copyBullet(item.suggestion, idx)}
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#0B2545] bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
+                                >
+                                  {copiedBulletIdx === idx ? (
+                                    <>
+                                      <CheckCheck className="w-3 h-3 text-emerald-600" />
+                                      <span className="text-emerald-700">Copied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3 h-3 text-[#627D98]" />
+                                      <span>Copy Bullet</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              <p className="text-xs text-[#0B2545] font-medium pl-2.5 border-l-2 border-[#1D4ED8] leading-relaxed">
+                                {item.suggestion}
+                              </p>
                             </div>
-                            <p className="text-xs text-[#0B2545] font-medium pl-2.5 border-l-2 border-[#1D4ED8] leading-relaxed">
-                              {item.rewritten}
-                            </p>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
                     </div>
 
@@ -1068,7 +1168,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
                   onClick={onOpenPaywall}
                   className="py-3.5 px-7 rounded-full font-bold text-xs uppercase tracking-wider text-white bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#3B82F6] hover:from-[#1E40AF] hover:to-[#2563EB] transition-all cursor-pointer shadow-[0_8px_20px_rgba(29,78,216,0.35)] inline-flex items-center gap-2"
                 >
-                  <span>Unlock Tailored Word Document — ₹249/mo</span>
+                  <span>Unlock Tailored Word Document — ₹{PRO_PRICE_INR}/mo</span>
                   <ArrowRight className="w-4 h-4 text-white" />
                 </button>
               </div>
@@ -1111,7 +1211,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
                           Google STAR Framework Active
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          94% Match (+18% Boost)
+                          Source scan {currentCheck.match_score}% match
                         </span>
                       </div>
                       <h3 className="text-lg font-bold text-[#0B2545]">
@@ -1188,7 +1288,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
                   onClick={onOpenPaywall}
                   className="py-3.5 px-7 rounded-full font-bold text-xs uppercase tracking-wider text-white bg-gradient-to-r from-[#1D4ED8] to-[#2563EB] transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
                 >
-                  <span>Unlock Custom Cover Letters — ₹249/mo</span>
+                  <span>Unlock Custom Cover Letters — ₹{PRO_PRICE_INR}/mo</span>
                   <ArrowRight className="w-4 h-4 text-white" />
                 </button>
               </div>
@@ -1212,25 +1312,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenPaywall }) => {
 
                 <button
                   type="button"
+                  disabled={!tailoredData?.cover_letter_text}
                   onClick={() => copyToClipboard(tailoredData?.cover_letter_text || '', 'cover')}
-                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-[#0B2545] transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-[#0B2545] transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {copiedCoverLetter ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedCoverLetter ? 'Copied' : 'Copy Cover Letter'}</span>
                 </button>
               </div>
 
-              <pre className="text-xs font-mono text-[#0B2545] bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80 max-h-[450px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words break-all max-w-full leading-relaxed">
-                {tailoredData?.cover_letter_text ||
-                  `Dear Hiring Team at ${currentCheck.company || 'your organization'},
-
-I am writing to express my strong interest in the ${currentCheck.job_title || 'open'} position. Having reviewed your technical requirements, my background directly aligns with your need for strong execution in ${currentCheck.strengths?.slice(0, 3).join(', ') || 'core deliverables'}.
-
-Throughout my career, I have driven measurable outcomes by combining systematic problem-solving with collaborative leadership. I would welcome the opportunity to discuss how my skillset can support your upcoming roadmap.
-
-Sincerely,
-Candidate`}
-              </pre>
+              {tailoredData?.cover_letter_text ? (
+                <pre className="text-xs font-mono text-[#0B2545] bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80 max-h-[450px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words break-all max-w-full leading-relaxed">
+                  {tailoredData.cover_letter_text}
+                </pre>
+              ) : (
+                <div className="text-xs sm:text-sm text-[#334E68] bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80 leading-relaxed">
+                  Not available yet. No cover letter has been generated for this role — we only show a
+                  letter once the generator has actually written one from your resume. Open the
+                  Tailored Resume tab to generate it.
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1305,6 +1406,37 @@ Candidate`}
 
           {/* Table Container & Mobile Stack Cards */}
           <div className="glass-panel rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_12px_32px_rgba(11,37,69,0.06)] p-4 sm:p-6 overflow-hidden max-w-full space-y-4">
+            {trackedJobs.length === 0 ? (
+              <div className="p-8 sm:p-12 text-center rounded-2xl border border-dashed border-slate-200/90 bg-slate-50/50">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#1D4ED8] flex items-center justify-center mx-auto mb-3 border border-blue-200/60">
+                  <Briefcase className="w-6 h-6 text-[#1D4ED8]" />
+                </div>
+                <h3 className="text-lg font-bold text-[#0B2545] font-['Space_Grotesk']">
+                  No Applications Tracked Yet
+                </h3>
+                <p className="text-xs sm:text-sm text-[#334E68] max-w-md mx-auto mt-1.5 leading-relaxed">
+                  Your tracker is empty. Every scan you run is added here automatically, or add an
+                  application manually to record a role you applied to elsewhere.
+                </p>
+                <div className="pt-5 flex flex-wrap items-center justify-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('calibration')}
+                    className="px-5 py-2.5 rounded-full text-white bg-gradient-to-r from-[#1D4ED8] to-[#2563EB] font-bold text-xs uppercase tracking-wider shadow-xs hover:shadow-md cursor-pointer"
+                  >
+                    Run a Scan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddJobModal(true)}
+                    className="px-5 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider text-[#0B2545] bg-white hover:bg-slate-50 border border-slate-200 transition-all cursor-pointer shadow-2xs"
+                  >
+                    Add Manually
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
             {/* Mobile Stack Layout for Tracker: Graceful display without aggressive truncation */}
             <div className="block md:hidden space-y-3">
               {trackedJobs.map((job) => (
@@ -1377,11 +1509,21 @@ Candidate`}
               <table className="w-full min-w-[620px] text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200/80 bg-slate-50/50 text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
-                    <th className="py-3.5 px-5">Role & Company</th>
-                    <th className="py-3.5 px-4">ATS Match</th>
-                    <th className="py-3.5 px-4">Current Stage</th>
-                    <th className="py-3.5 px-4">Date Applied</th>
-                    <th className="py-3.5 px-5 text-right">Stage Actions</th>
+                    <th scope="col" className="py-3.5 px-5">
+                      Role & Company
+                    </th>
+                    <th scope="col" className="py-3.5 px-4">
+                      ATS Match
+                    </th>
+                    <th scope="col" className="py-3.5 px-4">
+                      Current Stage
+                    </th>
+                    <th scope="col" className="py-3.5 px-4">
+                      Date Applied
+                    </th>
+                    <th scope="col" className="py-3.5 px-5 text-right">
+                      Stage Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
@@ -1444,16 +1586,28 @@ Candidate`}
                 </tbody>
               </table>
             </div>
+              </>
+            )}
           </div>
 
           {/* Add Job Modal */}
           {showAddJobModal && (
             <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-[#0B2545]/50 backdrop-blur-sm">
               <div className="flex min-h-full items-center justify-center p-3 sm:p-4 text-center">
-                <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-7 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 text-left my-auto">
+                <div
+                  ref={addJobModalRef}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="add-job-modal-title"
+                  tabIndex={-1}
+                  className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-7 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 text-left my-auto focus:outline-none"
+                >
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <h3 className="text-base font-bold text-[#0B2545]">Track Application</h3>
+                    <h3 id="add-job-modal-title" className="text-base font-bold text-[#0B2545]">
+                      Track Application
+                    </h3>
                     <button
+                      type="button"
                       onClick={() => setShowAddJobModal(false)}
                       className="p-1 rounded-full text-[#627D98] hover:text-[#0B2545] cursor-pointer"
                     >
@@ -1540,105 +1694,190 @@ Candidate`}
                 Resume Intelligence & Deep Diagnostic
               </h2>
               <p className="text-xs sm:text-sm text-[#334E68] mt-0.5">
-                Comprehensive screening metrics for parseability, keyword density, and Google STAR compliance.
+                Every figure below is computed from your own scan history. Diagnostics the engine does
+                not yet measure are labelled instead of estimated.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Card 1: Single-Column Parseability */}
-            <div className="glass-panel p-4 sm:p-6 rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#1D4ED8] uppercase tracking-wider">
-                  OCR Screening
-                </span>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  100% Passed
-                </span>
+          {!currentCheck && historyChecks.length === 0 ? (
+            <div className="p-8 sm:p-12 text-center rounded-2xl bg-white/60 backdrop-blur-2xl border border-dashed border-slate-200/90 shadow-[0_12px_32px_rgba(11,37,69,0.04)]">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#1D4ED8] flex items-center justify-center mx-auto mb-3 border border-blue-200/60">
+                <BarChart3 className="w-6 h-6 text-[#1D4ED8]" />
               </div>
-              <h3 className="text-base font-bold text-[#0B2545]">ATS Parseability Test</h3>
-              <p className="text-xs text-[#334E68] leading-relaxed">
-                Zero complex tables, multi-column blocks, or unreadable SVG text. Passes Greenhouse, Workday, and Lever OCR parsers cleanly.
+              <h3 className="text-lg font-bold text-[#0B2545] font-['Space_Grotesk']">
+                No Scan Data Yet
+              </h3>
+              <p className="text-xs sm:text-sm text-[#334E68] max-w-sm mx-auto mt-1.5 leading-relaxed">
+                These diagnostics are calculated from real scans. Run an ATS Calibration to generate
+                your first report.
               </p>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-[#627D98]">
-                <span>Format: Single-Column .docx</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('calibration')}
+                className="mt-5 px-6 py-2.5 rounded-full text-white bg-gradient-to-r from-[#1D4ED8] to-[#2563EB] font-bold text-xs uppercase tracking-wider shadow-xs hover:shadow-md cursor-pointer"
+              >
+                Run a Scan
+              </button>
             </div>
-
-            {/* Card 2: Google STAR Verb Density */}
-            <div className="glass-panel p-4 sm:p-6 rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#1D4ED8] uppercase tracking-wider">
-                  Action Verbs
-                </span>
-                <span className="text-xs font-bold text-[#0B2545] font-['Space_Grotesk']">
-                  92% Strong
-                </span>
-              </div>
-              <h3 className="text-base font-bold text-[#0B2545]">Impact Verb Ratio</h3>
-              <p className="text-xs text-[#334E68] leading-relaxed">
-                Replaces passive duties ("Responsible for") with executive verbs ("Architected", "Spearheaded", "Optimized", "Scaled").
-              </p>
-              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mt-1">
-                <div className="bg-gradient-to-r from-[#1D4ED8] to-[#2563EB] h-2 rounded-full w-[92%]" />
-              </div>
-            </div>
-
-            {/* Card 3: Quantifiable Numbers */}
-            <div className="glass-panel p-4 sm:p-6 rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#1D4ED8] uppercase tracking-wider">
-                  Metrics
-                </span>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  High Impact
-                </span>
-              </div>
-              <h3 className="text-base font-bold text-[#0B2545]">Quantified Metrics Ratio</h3>
-              <p className="text-xs text-[#334E68] leading-relaxed">
-                Highlights percentages, revenue growth, latency reductions, and team sizes across career milestones.
-              </p>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-[#627D98]">
-                <span>Benchmark: 3+ numbers/role</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              </div>
-            </div>
-          </div>
-
-          {/* Hard Skills vs Soft Skills Breakdown */}
-          <div className="glass-panel p-4 sm:p-6 rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_12px_32px_rgba(11,37,69,0.06)] space-y-4">
-            <h3 className="text-base font-bold text-[#0B2545] font-['Space_Grotesk']">
-              Semantic Keyword Balance
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 rounded-2xl bg-white/80 border border-slate-200/80 space-y-2">
-                <div className="flex justify-between items-center text-xs font-bold text-[#0B2545]">
-                  <span>Hard Technical Competencies</span>
-                  <span className="text-[#1D4ED8]">74% match</span>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Card 1: Single-Column Parseability */}
+                <div className="glass-panel p-4 sm:p-6 rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#1D4ED8] uppercase tracking-wider">
+                      OCR Screening
+                    </span>
+                    <span className="text-xs font-bold text-[#627D98] bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                      Not measured
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-[#0B2545]">ATS Parseability Test</h3>
+                  <p className="text-xs text-[#334E68] leading-relaxed">
+                    Not available. Your scans are not submitted to Greenhouse, Workday or Lever
+                    parsers, so we have no pass/fail measurement to show you.
+                  </p>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-[#627D98]">
+                    <span>Export format: Single-Column .docx</span>
+                  </div>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-[#1D4ED8] h-1.5 rounded-full w-[74%]" />
+
+                {/* Card 2: Google STAR Verb Density */}
+                <div className="glass-panel p-4 sm:p-6 rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#1D4ED8] uppercase tracking-wider">
+                      Action Verbs
+                    </span>
+                    <span className="text-xs font-bold text-[#627D98] font-['Space_Grotesk']">
+                      Not measured
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-[#0B2545]">Impact Verb Ratio</h3>
+                  <p className="text-xs text-[#334E68] leading-relaxed">
+                    Not available. The engine compares keywords, not writing style, so it does not
+                    score passive or executive verbs in your bullets.
+                  </p>
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mt-1">
+                    <div className="bg-[#1D4ED8] h-2 rounded-full w-0" />
+                  </div>
                 </div>
-                <p className="text-xs text-[#627D98]">
-                  React, TypeScript, Node.js, PostgreSQL, Docker, Redis, REST APIs, Microservices.
-                </p>
+
+                {/* Card 3: Quantifiable Numbers */}
+                <div className="glass-panel p-4 sm:p-6 rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#1D4ED8] uppercase tracking-wider">
+                      Metrics
+                    </span>
+                    <span className="text-xs font-bold text-[#627D98] bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                      Not measured
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-[#0B2545]">Quantified Metrics Ratio</h3>
+                  <p className="text-xs text-[#334E68] leading-relaxed">
+                    Not available. We do not count numbers per role, because doing so reliably would
+                    mean guessing what your bullets are claiming.
+                  </p>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-[#627D98]">
+                    <span>Numbers per role: not computed</span>
+                  </div>
+                </div>
+
+                {/* Card 4: Scan record — fully derived from /api/history */}
+                <div className="glass-panel p-4 sm:p-6 rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-xs space-y-3 lg:col-span-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#1D4ED8] uppercase tracking-wider">
+                      Your Scan Record
+                    </span>
+                    <span className="text-xs font-bold text-[#0B2545] font-['Space_Grotesk']">
+                      {historyChecks.length} scan{historyChecks.length === 1 ? '' : 's'} performed
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/80">
+                      <span className="text-[10px] uppercase font-bold text-[#627D98] block">
+                        Scans performed
+                      </span>
+                      <span className="text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk'] block">
+                        {historyChecks.length}
+                      </span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/80">
+                      <span className="text-[10px] uppercase font-bold text-[#627D98] block">
+                        Average match
+                      </span>
+                      <span className="text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk'] block">
+                        {averageMatchScore === null ? 'Not available' : `${averageMatchScore}%`}
+                      </span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/80">
+                      <span className="text-[10px] uppercase font-bold text-[#627D98] block">
+                        Best match
+                      </span>
+                      <span className="text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk'] block">
+                        {bestMatchScore === null ? 'Not available' : `${bestMatchScore}%`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-white/80 border border-slate-200/80 space-y-2">
-                <div className="flex justify-between items-center text-xs font-bold text-[#0B2545]">
-                  <span>Leadership & Cross-Functional</span>
-                  <span className="text-emerald-700">88% match</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-emerald-600 h-1.5 rounded-full w-[88%]" />
-                </div>
-                <p className="text-xs text-[#627D98]">
-                  Cross-functional alignment, System design audits, Engineering mentorship, Stakeholder communication.
-                </p>
+              {/* Keyword balance, derived from the current scan only */}
+              <div className="glass-panel p-4 sm:p-6 rounded-2xl !bg-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_12px_32px_rgba(11,37,69,0.06)] space-y-4">
+                <h3 className="text-base font-bold text-[#0B2545] font-['Space_Grotesk']">
+                  Keyword Balance — {currentCheck?.job_title || 'Latest Scan'}
+                </h3>
+                {!currentCheck ? (
+                  <p className="text-xs text-[#334E68] italic">Run a scan to see this breakdown.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 rounded-2xl bg-white/80 border border-slate-200/80 space-y-2">
+                      <div className="flex justify-between items-center text-xs font-bold text-[#0B2545]">
+                        <span>Keywords matched</span>
+                        <span className="text-[#1D4ED8]">
+                          {matchedKeywordCount} of {trackedKeywordCount} · {matchedShare}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-[#1D4ED8] h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${matchedShare}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-[#627D98]">
+                        {matchedKeywordCount > 0
+                          ? (currentCheck.strengths || [])
+                              .map((s) => s.replace(/^Demonstrated proficiency in\s*/i, ''))
+                              .slice(0, 12)
+                              .join(', ')
+                          : 'No required keywords from this job description were found in your resume.'}
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/80 border border-slate-200/80 space-y-2">
+                      <div className="flex justify-between items-center text-xs font-bold text-[#0B2545]">
+                        <span>Missing keyword gaps</span>
+                        <span className="text-rose-700">
+                          {missingKeywordCount} of {trackedKeywordCount} · {missingShare}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-rose-500 h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${missingShare}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-[#627D98]">
+                        {missingKeywordCount > 0
+                          ? currentCheck.missing_keywords.slice(0, 12).join(', ')
+                          : 'No required keywords are missing from this job description.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
     </div>

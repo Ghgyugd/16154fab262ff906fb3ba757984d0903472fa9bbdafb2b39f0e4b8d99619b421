@@ -6,3 +6,15 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Runtime data stores: contains real user resume text and job descriptions.
+# Exclude contents (not the directory) so seed files can still be re-included.
+data/*
+uploads/
+
+!data/db.example.json
+
+# Local secret scratch files (API keys pasted for local development).
+locals.txt
+*.local.txt
+secrets.txt

@@ -42,6 +42,19 @@ const anthropicAdapter = new AnthropicAdapter();
 const openaiAdapter = new OpenAIAdapter();
 
 /**
+ * Coerces a model-supplied score into a valid 0-100 number.
+ *
+ * `Number(x) || fallback` was used previously, which silently converted a
+ * legitimate score of 0 into a flattering fallback (75 / 92). A real zero is
+ * preserved; only genuinely unusable input takes the fallback.
+ */
+function normalizeScore(value: unknown, fallback: number): number {
+  const n = typeof value === 'string' ? Number(value.trim()) : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+/**
  * Resolves the primary and fallback adapters based on availability and task priority:
  * 1. Primary: Groq (llama-3.3-70b) for sub-second hard skill extraction & keyword deltas.
  * 2. Fallback / Deep Analysis: Google Gemini (@google/genai SDK) for deep alignment & cover letters.
@@ -49,51 +62,48 @@ const openaiAdapter = new OpenAIAdapter();
 export function getModelPipeline(task: ModelTask) {
   const preferred = (process.env.AI_PROVIDER || '').toLowerCase();
 
-  // If user explicitly configured provider
-  if (preferred === 'groq' && groqAdapter.isAvailable()) {
-    return [groqAdapter, geminiAdapter];
-  }
-  if (preferred === 'gemini' && geminiAdapter.isAvailable()) {
-    return [geminiAdapter, groqAdapter];
-  }
-  if (preferred === 'anthropic' && anthropicAdapter.isAvailable()) {
-    return [anthropicAdapter, geminiAdapter];
-  }
-  if (preferred === 'openai' && openaiAdapter.isAvailable()) {
-    return [openaiAdapter, geminiAdapter];
-  }
+  const byId: Record<string, () => boolean> = {
+    groq: () => groqAdapter.isAvailable(),
+    gemini: () => geminiAdapter.isAvailable(),
+    anthropic: () => anthropicAdapter.isAvailable(),
+    openai: () => openaiAdapter.isAvailable(),
+  };
 
-  // Multi-model orchestration:
-  // For 'score': Groq primary (sub-second extraction), Gemini fallback
-  // For 'tailor': Gemini primary (deep reasoning & recruiter rubrics), Groq fallback
-  if (task === 'score') {
-    const list = [];
-    if (groqAdapter.isAvailable()) list.push(groqAdapter);
-    if (geminiAdapter.isAvailable()) list.push(geminiAdapter);
-    if (anthropicAdapter.isAvailable()) list.push(anthropicAdapter);
-    if (openaiAdapter.isAvailable()) list.push(openaiAdapter);
-    return list.length ? list : [geminiAdapter];
-  }
+  // Task-appropriate ordering. 'score' is a cheap extraction task, so the
+  // sub-second model leads; 'tailor' needs deeper reasoning.
+  const order =
+    task === 'score'
+      ? ['groq', 'gemini', 'anthropic', 'openai']
+      : ['gemini', 'groq', 'anthropic', 'openai'];
 
-  // 'tailor' task
+  // AI_PROVIDER pins the preferred provider to the front of the chain but must
+  // not remove the other available providers from the fallback path.
+  const effectiveOrder =
+    preferred && preferred in byId ? [preferred, ...order.filter((id) => id !== preferred)] : order;
+
   const list = [];
-  if (geminiAdapter.isAvailable()) list.push(geminiAdapter);
-  if (groqAdapter.isAvailable()) list.push(groqAdapter);
-  if (anthropicAdapter.isAvailable()) list.push(anthropicAdapter);
-  if (openaiAdapter.isAvailable()) list.push(openaiAdapter);
-  return list.length ? list : [geminiAdapter];
+  for (const id of effectiveOrder) {
+    if (byId[id]()) list.push(id === 'groq' ? groqAdapter : id === 'gemini' ? geminiAdapter : id === 'anthropic' ? anthropicAdapter : openaiAdapter);
+  }
+
+  // No provider configured: return an empty chain so callers fall through to
+  // their deterministic local fallback rather than attempting an adapter whose
+  // credentials are missing.
+  return list;
 }
 
 export function getModelForTask(task: ModelTask, providerId: string): string {
   if (providerId === 'groq') {
-    return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+    return process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
   }
   if (providerId === 'gemini') {
     if (task === 'tailor') return process.env.TAILOR_MODEL || 'gemini-2.5-pro';
     return process.env.SCORE_MODEL || 'gemini-2.5-flash';
   }
   if (providerId === 'anthropic') {
-    return task === 'tailor' ? 'claude-3-5-sonnet-20241022' : 'claude-3-5-haiku-20241022';
+    return task === 'tailor'
+      ? process.env.TAILOR_MODEL_ANTHROPIC || 'claude-sonnet-4-5'
+      : process.env.SCORE_MODEL_ANTHROPIC || 'claude-haiku-4-5';
   }
   if (providerId === 'openai') {
     return task === 'tailor' ? 'gpt-4o' : 'gpt-4o-mini';
@@ -126,7 +136,7 @@ export async function runModel<T = any>(task: ModelTask, input: any): Promise<T>
         const validated = ScoreResultSchema.parse({
           job_title: rawResult.job_title || 'Target Role',
           company: rawResult.company || 'Hiring Organization',
-          match_score: Number(rawResult.match_score) || 75,
+          match_score: normalizeScore(rawResult.match_score, 0),
           missing_keywords: Array.isArray(rawResult.missing_keywords) ? rawResult.missing_keywords : [],
           strengths: Array.isArray(rawResult.strengths) ? rawResult.strengths : [],
           summary: rawResult.summary || 'Resume analyzed against technical rubrics.',
@@ -163,7 +173,7 @@ export async function runModel<T = any>(task: ModelTask, input: any): Promise<T>
           tailored_resume_text: rawResult.tailored_resume_text || '',
           cover_letter_text: rawResult.cover_letter_text || '',
           key_changes_made: Array.isArray(rawResult.key_changes_made) ? rawResult.key_changes_made : [],
-          improved_match_score: Number(rawResult.improved_match_score) || 92,
+          improved_match_score: normalizeScore(rawResult.improved_match_score, 0),
         });
 
         return validated as unknown as T;
@@ -225,64 +235,102 @@ function generateHeuristicScore(jd: string, resume: string): ScoreResult {
   const matched = jdKeywords.filter(kw => resumeLower.includes(kw));
   const missing = jdKeywords.filter(kw => !resumeLower.includes(kw));
 
-  const ratio = jdKeywords.length > 0 ? (matched.length / jdKeywords.length) : 0.75;
-  const score = Math.round(55 + (ratio * 40));
+  // No evidence either way: report 0 rather than inventing a flattering number.
+  const score = jdKeywords.length > 0
+    ? Math.round((matched.length / jdKeywords.length) * 100)
+    : 0;
 
   return {
-    job_title: jd.slice(0, 60).split('\n')[0].replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'Software Engineer',
-    company: 'Target Company',
-    match_score: Math.min(95, Math.max(50, score)),
-    missing_keywords: missing.slice(0, 6).length ? missing.slice(0, 6) : ['Cloud Infrastructure', 'CI/CD Pipelines', 'KPI Optimization'],
-    strengths: matched.slice(0, 4).length ? matched.slice(0, 4).map(m => `Demonstrated hands-on experience in ${m.toUpperCase()}`) : ['Strong foundational domain expertise', 'Clear career progression', 'Demonstrated problem-solving capabilities'],
-    summary: `Candidate demonstrates ${score}% ATS alignment. Integrating highlighted technical competencies will significantly improve recruiter screening conversion.`,
-    star_suggestions: [
-      {
-        original: 'Worked on backend services and APIs.',
-        suggestion: 'Architected high-throughput REST and GraphQL microservices using Node.js and TypeScript, reducing API latency by 38% under 20k RPM load.',
-        keyword: missing[0] || 'Microservices',
-        situation_task: 'Legacy monolith experienced high latency during traffic spikes.',
-        action: 'Refactored backend endpoints into modular microservices with caching.',
-        result: 'Achieved 38% latency reduction and 99.9% service availability.',
-      },
-    ],
+    job_title: jd.slice(0, 60).split('\n')[0].replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'Target Role',
+    company: 'Target Organization',
+    match_score: Math.max(0, Math.min(100, score)),
+    // Only report genuinely missing keywords; never pad with invented filler.
+    missing_keywords: missing.slice(0, 8),
+    strengths: matched.slice(0, 5).map(m => `Your resume explicitly mentions ${m}`),
+    summary:
+      matched.length > 0
+        ? `Locally scored ${score}%: your resume mentions ${matched.length} of the ${jdKeywords.length} tracked keywords in this description. Not an AI assessment.`
+        : 'No tracked keywords from this job description were found in your resume. This is a local keyword check, not an AI assessment.',
+    star_suggestions: missing.slice(0, 3).map((kw) => ({
+      original: `(No bullet found that evidences ${kw}.)`,
+      suggestion: `Add a bullet from your own experience demonstrating ${kw}. Use action + method + your real measurable result.`,
+      keyword: kw,
+    })),
+    synthetic: true,
   };
 }
 
+/**
+ * Local fallback used ONLY when every AI provider is unavailable.
+ *
+ * It must never invent content. The previous version fabricated achievements
+ * ("38% improvement", "99.9% uptime"), employers, degrees and an inflated
+ * "improved_match_score: 94", then persisted that as the user's tailored
+ * resume. This scaffold is derived strictly from the candidate's own text and
+ * is explicitly flagged synthetic.
+ */
 function generateHeuristicTailored(jd: string, resume: string, missingKeywords: string[]): TailorResult {
-  const cleanKeywords = missingKeywords.length > 0 ? missingKeywords : ['System Architecture', 'CI/CD Pipelines', 'Performance Optimization'];
+  const missing = missingKeywords.slice(0, 10);
+
+  // Use the candidate's own resume text as the body. No invented sections.
+  const ownText = (resume || '').trim();
+  const body =
+    ownText.length > 80
+      ? ownText
+      : '[Your resume text could not be read. Re-upload your resume as a text-based PDF or DOCX to generate a tailored version.]';
+
+  const sections: string[] = [];
+  if (missing.length) {
+    sections.push(
+      `Keywords this job description asks for that your resume does not yet evidence:\n${missing
+        .map((k) => `  - ${k}`)
+        .join('\n')}\n\nFor each one, add a bullet under your most relevant role that demonstrates real experience with it. Only claim what you have actually done.`
+    );
+  }
+  sections.push(
+    'Check every bullet for a measurable result (volume, percentage, time saved, revenue, latency). Replace vague statements with numbers you can defend in an interview.'
+  );
+  sections.push(
+    'Mirror the exact terminology used in the job description where it accurately describes your experience, so keyword-based screeners can match it.'
+  );
+
+  const tailoredResumeText = [
+    body,
+    '',
+    '='.repeat(60),
+    'ACTION CHECKLIST (generated locally - no AI provider was configured)',
+    '='.repeat(60),
+    '',
+    ...sections,
+  ].join('\n');
+
+  const coverLetterText = [
+    'Dear Hiring Team,',
+    '',
+    'I am applying for this role and believe my background is relevant.',
+    '',
+    '[Scaffold only: no AI provider was configured, so no cover letter was drafted for you.]',
+    `Write three short paragraphs covering: (1) the most relevant role and its scope,`,
+    `(2) one or two concrete projects that map onto this job's requirements${missing.length ? ` (for example: ${missing.slice(0, 3).join(', ')})` : ''}, and`,
+    '(3) what you want to focus on next. Use only claims you can substantiate.',
+    '',
+    'Sincerely,',
+    '[Your name]',
+  ].join('\n');
 
   return {
-    tailored_resume_text: `PROFESSIONAL SUMMARY
-Highly accomplished engineering professional with demonstrated track record in delivering high-impact technical solutions. Strategically tailored for the target role with emphasized mastery in ${cleanKeywords.slice(0, 3).join(', ')}.
-
-CORE TECHNICAL COMPETENCIES
-- Core Technologies: ${cleanKeywords.join(', ')}, Distributed Systems
-- Methodologies: Agile / Scrum, Cross-Functional Leadership, Rapid Prototyping
-- Cloud & Infrastructure: Scalable Cloud Architecture, CI/CD, Reliability Engineering
-
-PROFESSIONAL EXPERIENCE
-Senior Technical Specialist | Tech Solutions
-- Architected enterprise-grade systems integrating ${cleanKeywords[0] || 'core technologies'}, driving a 38% improvement in deployment velocity.
-- Spearheaded optimization initiatives resulting in 99.9% uptime and reduced operational latency across services.
-- Mentored junior engineers, established best practices in testing, and delivered deliverables ahead of schedule.
-
-EDUCATION & CREDENTIALS
-Bachelor of Science | Computer Science & Engineering`,
-    cover_letter_text: `Dear Hiring Team,
-
-I am writing to express my enthusiastic interest in this role. Having closely reviewed the core requirements of the position, I am confident that my background in delivering scalable solutions, coupled with hands-on expertise in ${cleanKeywords.slice(0, 2).join(' and ')}, aligns directly with your team's immediate priorities.
-
-Throughout my career, I have focused on translating ambitious product goals into dependable, high-performance systems. At my current organization, I led pivotal initiatives that significantly increased efficiency while maintaining rigorous engineering standards.
-
-I welcome the opportunity to discuss how my skill set and proactive approach can contribute directly to your team's upcoming milestones.
-
-Sincerely,
-Candidate`,
+    tailored_resume_text: tailoredResumeText,
+    cover_letter_text: coverLetterText,
     key_changes_made: [
-      `Seamlessly integrated ${cleanKeywords.length} targeted ATS keywords into Core Competencies`,
-      'Restructured bullet points with measurable impact metrics and action verbs',
-      'Crafted a targeted cover letter tailored to the hiring team',
+      'No AI rewrite was applied: no model provider responded to the request.',
+      'Your original resume text was preserved verbatim and appended with an action checklist.',
+      `Listed ${missing.length} genuinely missing keyword(s) detected by the ATS matcher.`,
     ],
-    improved_match_score: 94,
+    // Honest: we cannot know an improved score without actually tailoring.
+    improved_match_score: 0,
+    synthetic: true,
+    notice:
+      'No AI provider responded (GEMINI_API_KEY / GROQ_API_KEY are not configured), so no tailored resume was written. ' +
+      'What you see is your original resume text plus a checklist. No content was invented.',
   };
 }

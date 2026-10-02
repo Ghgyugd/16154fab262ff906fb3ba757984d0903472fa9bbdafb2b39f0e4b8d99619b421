@@ -24,8 +24,11 @@ function validateOcrReadability(rawText: string): { isValid: boolean; score: num
   // Words with at least 2 characters
   const words = rawText.trim().split(/\s+/).filter((w) => w.length >= 2);
 
-  // If alphanumeric ratio is too low (< 40%) or word count < 20, document is likely flat image or corrupted OCR
-  const isHealthy = ratio >= 0.45 && words.length >= 25;
+  // Reject documents whose alphanumeric density is below 45% or that have fewer
+  // than 25 words: these are almost always flat images with no text layer.
+  const MIN_ALNUM_RATIO = 0.45;
+  const MIN_WORDS = 25;
+  const isHealthy = ratio >= MIN_ALNUM_RATIO && words.length >= MIN_WORDS;
   const readabilityScore = Math.min(100, Math.round(ratio * 100));
 
   return {
@@ -88,11 +91,21 @@ export async function extractResumeText(
     }
   }
 
-  // Strip binary/non-printable control chars while preserving newlines and spacing
+  // Strip binary/non-printable control chars while PRESERVING line structure.
+  // The previous version collapsed every newline into a space, which destroyed
+  // the section/bullet layout that docx-generator.ts relies on to detect
+  // headings and bullets.
   const sanitizedText = extractedText
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
     .replace(/\r\n/g, '\n')
-    .replace(/\s+/g, ' ')
+    .replace(/\r/g, '\n')
+    // Normalize horizontal whitespace only, never newlines.
+    .replace(/[^\S\n]+/g, ' ')
+    // Collapse runs of blank lines and trim each line.
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 
   // OCR Readability & Scanned Image Validation
@@ -109,6 +122,6 @@ export async function extractResumeText(
     text: sanitizedText,
     ocrReadabilityScore: ocrCheck.score,
     wordCount: words.length,
-    isOcrValid: true,
+    isOcrValid: ocrCheck.isValid,
   };
 }

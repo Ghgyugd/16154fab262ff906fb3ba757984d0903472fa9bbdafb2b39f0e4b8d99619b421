@@ -1,50 +1,49 @@
 @import "tailwindcss";
 
+/*
+ * Single source of truth for the palette and type.
+ *
+ * Font families below must match the families actually requested in
+ * index.html. Previously they named "Plus Jakarta Sans" and "Caveat" while only
+ * Space Grotesk / IBM Plex Sans / JetBrains Mono were loaded, so every heading
+ * silently fell back to a system font.
+ */
 @theme {
-  --color-corporate-cloud: #F7F9FC;
-  --color-corporate-navy: #0B2545;
-  --color-corporate-blue: #1D4ED8;
-  --color-corporate-steel: #8DA9C4;
+  --color-corporate-cloud: #f7f9fc;
+  --color-corporate-navy: #0b2545;
+  --color-corporate-blue: #1d4ed8;
+  --color-corporate-steel: #8da9c4;
 
-  --color-cloud: #F7F9FC;
-  --color-navy: #0B2545;
-  --color-royal: #1D4ED8;
-  --color-steel: #8DA9C4;
-
-  --color-canvas: #F7F9FC;
-  --color-surface-base: #FFFFFF;
-  --color-surface-muted: #F0F4F8;
-  --color-surface-navy: #0B2545;
-  --color-border-subtle: #E2E8F0;
-  --color-border-steel: #8DA9C4;
-  --color-border-strong: #CBD5E1;
-  --color-text-primary: #0B2545;
-  --color-text-secondary: #334E68;
-  --color-text-muted: #627D98;
-  --color-accent-primary: #0B2545;
-  --color-accent-blue: #1D4ED8;
-  --color-accent-steel: #8DA9C4;
+  --color-canvas: #f7f9fc;
+  --color-surface-base: #ffffff;
+  --color-surface-muted: #f0f4f8;
+  --color-surface-navy: #0b2545;
+  --color-border-subtle: #e2e8f0;
+  --color-border-steel: #8da9c4;
+  --color-border-strong: #cbd5e1;
+  --color-text-primary: #0b2545;
+  --color-text-secondary: #334e68;
+  --color-text-muted: #627d98;
+  --color-accent-primary: #0b2545;
+  --color-accent-blue: #1d4ed8;
+  --color-accent-steel: #8da9c4;
   --color-accent-emerald: #059669;
-  --color-accent-amber: #D97706;
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --color-accent-amber: #d97706;
+
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-display: 'Space Grotesk', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-cursive: 'Caveat', cursive;
+  --font-cursive: 'Caveat', 'Segoe Script', cursive;
 }
 
 @layer base {
-  :root {
-    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-    --font-cursive: 'Caveat', cursive;
-  }
-  
   html {
-    background-color: #F7F9FC;
-    color: #0B2545;
+    background-color: var(--color-canvas);
+    color: var(--color-text-primary);
     font-family: var(--font-sans);
     scroll-behavior: auto;
     overflow-x: hidden;
@@ -53,8 +52,8 @@
   }
 
   body {
-    background-color: #F7F9FC;
-    color: #0B2545;
+    background-color: var(--color-canvas);
+    color: var(--color-text-primary);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -63,8 +62,9 @@
     width: 100%;
   }
 
-  /* Lenis Native CSS */
-  html.lenis, html.lenis body {
+  /* Lenis smooth-scroll requirements (the library is bundled via npm) */
+  html.lenis,
+  html.lenis body {
     height: auto;
   }
 
@@ -84,57 +84,46 @@
     pointer-events: none;
   }
 
-  body {
-    background-color: #F7F9FC;
-    color: #0B2545;
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    color: var(--color-text-primary);
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-    color: #0B2545;
+  /* Visible keyboard focus everywhere, including custom interactive divs. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent-blue);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 }
 
 /* Precision Glassmorphic Cards with Deep Multi-Layered Shadows */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.45);
+  background: rgb(255 255 255 / 45%);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  box-shadow: 
-    0 16px 40px -10px rgba(11, 37, 69, 0.08), 
-    0 4px 16px rgba(11, 37, 69, 0.03), 
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
-}
-
-.craft-card {
-  background-color: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 24px;
-  box-shadow: 
-    0 1px 2px rgba(11, 37, 69, 0.03),
-    0 8px 24px -4px rgba(11, 37, 69, 0.06),
-    0 20px 48px -12px rgba(29, 78, 216, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.craft-card:hover {
-  border-color: rgba(29, 78, 216, 0.45);
-  box-shadow: 
-    0 2px 4px rgba(11, 37, 69, 0.04),
-    0 16px 36px -6px rgba(11, 37, 69, 0.09),
-    0 28px 64px -12px rgba(29, 78, 216, 0.08);
-  transform: translateY(-2px);
+  border: 1px solid rgb(255 255 255 / 75%);
+  box-shadow:
+    0 16px 40px -10px rgb(11 37 69 / 8%),
+    0 4px 16px rgb(11 37 69 / 3%),
+    inset 0 1px 0 rgb(255 255 255 / 95%);
 }
 
 .font-cursive {
-  font-family: 'Caveat', cursive;
+  font-family: var(--font-cursive);
+}
+
+.clerk-auth-theme .clerk-auth-hidden-header,
+.clerk-auth-theme .clerk-auth-hidden-footer,
+.clerk-auth-theme .clerk-auth-hidden-footer-item,
+.clerk-auth-theme .clerk-auth-hidden-footer-action,
+.clerk-auth-theme .clerk-auth-hidden-footer-pages {
+  display: none !important;
 }
 
 @keyframes laserScan {
@@ -151,6 +140,18 @@
   100% {
     top: 100%;
     opacity: 0;
+  }
+}
+
+/* Honour the OS reduced-motion preference across all decorative animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

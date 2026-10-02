@@ -1,5 +1,8 @@
 import { ModelRequestOptions } from './gemini.js';
 
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_OUTPUT_TOKENS = 4096;
+
 export class OpenAIAdapter {
   public id = 'openai';
   public name = 'OpenAI Compatible';
@@ -17,27 +20,39 @@ export class OpenAIAdapter {
     const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
     const model = options.modelName || 'gpt-4o-mini';
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        temperature: options.temperature ?? 0.2,
-        response_format: { type: 'json_object' },
-        messages: [
-          ...(options.systemInstruction
-            ? [{ role: 'system', content: options.systemInstruction }]
-            : []),
-          { role: 'user', content: options.prompt },
-        ],
-      }),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          temperature: options.temperature ?? 0.2,
+          max_tokens: MAX_OUTPUT_TOKENS,
+          response_format: { type: 'json_object' },
+          messages: [
+            ...(options.systemInstruction
+              ? [{ role: 'system', content: options.systemInstruction }]
+              : []),
+            { role: 'user', content: options.prompt },
+          ],
+        }),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!response.ok) {
-      const errorText = await response.text();
+      // Upstream error bodies can echo the submitted resume, so log only a prefix.
+      const errorText = (await response.text()).slice(0, 200);
+      console.error(`[OpenAI Adapter] HTTP ${response.status}: ${errorText}`);
       throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
     }
 

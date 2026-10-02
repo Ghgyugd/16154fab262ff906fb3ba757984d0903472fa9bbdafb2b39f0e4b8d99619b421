@@ -1,117 +1,92 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import Lenis from 'lenis';
+
+type ScrollOptions = { offset?: number; duration?: number; immediate?: boolean };
 
 interface LenisContextType {
   lenis: Lenis | null;
-  scrollTo: (
-    target: string | number | HTMLElement,
-    options?: { offset?: number; duration?: number; immediate?: boolean }
-  ) => void;
-  scrollToStep: (stepId: string) => void;
+  scrollTo: (target: string | number | HTMLElement, options?: ScrollOptions) => void;
 }
 
 const LenisContext = createContext<LenisContextType>({
   lenis: null,
   scrollTo: () => {},
-  scrollToStep: () => {},
 });
 
 export const LenisProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const lenisRef = useRef<Lenis | null>(null);
+  // Exposed as state so consumers re-render when the instance becomes ready.
+  const [lenis, setLenis] = useState<Lenis | null>(null);
 
   useEffect(() => {
-    // Respect prefers-reduced-motion
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReducedMotion) {
       return;
     }
 
-    // Initialize Lenis 1.x
-    const lenis = new Lenis({
-      duration: 1.2,
+    const instance = new Lenis({
+      // Snappier than the previous 1.2s — long durations make wheel scrolling
+      // feel delayed/laggy because the page keeps easing toward the target.
+      duration: 0.9,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
       wheelMultiplier: 1.0,
       touchMultiplier: 1.5,
-      syncTouch: true,
+      // Native touch scrolling: Lenis' synced touch animation was a common
+      // source of jank on mobile devices and buys nothing on desktop.
+      syncTouch: false,
     });
 
-    lenisRef.current = lenis;
-
-    // Expose globally so users and devtools can verify Lenis is actively running
-    if (typeof window !== 'undefined') {
-      (window as any).lenis = lenis;
-      (window as any).Lenis = Lenis;
-      document.documentElement.classList.add('lenis', 'lenis-smooth');
-    }
+    lenisRef.current = instance;
+    setLenis(instance);
+    document.documentElement.classList.add('lenis', 'lenis-smooth');
 
     let rafId: number;
     const raf = (time: number) => {
-      lenis.raf(time);
+      instance.raf(time);
       rafId = requestAnimationFrame(raf);
     };
     rafId = requestAnimationFrame(raf);
 
-    // Global hash click listener for smooth internal section jumps
-    const handleAnchorClick = (e: MouseEvent) => {
-      const target = (e.target as HTMLElement).closest('a[href^="#"]');
-      if (target) {
-        const href = target.getAttribute('href');
-        if (href && href.length > 1) {
-          const el = document.querySelector(href);
-          if (el) {
-            e.preventDefault();
-            lenis.scrollTo(el as HTMLElement, { offset: -76, duration: 1.1 });
-          }
-        }
-      }
-    };
-
-    document.addEventListener('click', handleAnchorClick);
-
     return () => {
-      document.removeEventListener('click', handleAnchorClick);
       cancelAnimationFrame(rafId);
-      lenis.destroy();
+      instance.destroy();
       lenisRef.current = null;
-      if (typeof window !== 'undefined') {
-        document.documentElement.classList.remove('lenis', 'lenis-smooth');
-        delete (window as any).lenis;
-      }
+      document.documentElement.classList.remove('lenis', 'lenis-smooth');
     };
+  }, [setLenis]);
+
+  // Stable identity so consumers (Navbar) stop re-rendering on every provider render.
+  const scrollTo = useCallback((target: string | number | HTMLElement, options?: ScrollOptions) => {
+    const active = lenisRef.current;
+    if (active) {
+      active.scrollTo(target, options);
+      return;
+    }
+
+    const behavior: ScrollBehavior = options?.immediate ? 'auto' : 'smooth';
+    if (typeof target === 'number') {
+      window.scrollTo({ top: target, behavior });
+    } else if (typeof target === 'string') {
+      document.querySelector(target)?.scrollIntoView({ behavior });
+    } else {
+      target.scrollIntoView({ behavior });
+    }
   }, []);
 
-  const scrollTo = (
-    target: string | number | HTMLElement,
-    options?: { offset?: number; duration?: number; immediate?: boolean }
-  ) => {
-    if (lenisRef.current) {
-      lenisRef.current.scrollTo(target, options);
-    } else {
-      if (typeof target === 'number') {
-        window.scrollTo({ top: target, behavior: options?.immediate ? 'auto' : 'smooth' });
-      } else if (typeof target === 'string') {
-        const el = document.querySelector(target);
-        if (el) {
-          el.scrollIntoView({ behavior: options?.immediate ? 'auto' : 'smooth' });
-        }
-      } else if (target instanceof HTMLElement) {
-        target.scrollIntoView({ behavior: options?.immediate ? 'auto' : 'smooth' });
-      }
-    }
-  };
+  const value = useMemo<LenisContextType>(() => ({ lenis, scrollTo }), [lenis, scrollTo]);
 
-  const scrollToStep = (stepId: string) => {
-    scrollTo(`#${stepId}`, { offset: -76, duration: 1.2 });
-  };
-
-  return (
-    <LenisContext.Provider value={{ lenis: lenisRef.current, scrollTo, scrollToStep }}>
-      {children}
-    </LenisContext.Provider>
-  );
+  return <LenisContext.Provider value={value}>{children}</LenisContext.Provider>;
 };
 
 export const useLenisScroll = () => useContext(LenisContext);

@@ -1,13 +1,17 @@
+import 'dotenv/config';
+import 'express-async-errors';
 import express, { Request, Response, NextFunction } from 'express';
-import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
+import { clerkClient, verifyToken } from '@clerk/express';
 
-import { db, User, ApplicationStatus } from './lib/db.js';
+import type { User, ApplicationStatus, ApplicationTracker } from './lib/db.js';
+import { supabaseDb as db } from './lib/supabase-db.js';
 import { runModel } from './lib/models.js';
 import { extractResumeText } from './lib/parser.js';
 import { storageService } from './lib/storage.js';
@@ -15,8 +19,13 @@ import { atsEngine } from './lib/ats-engine.js';
 import { taskQueue } from './lib/queue.js';
 import { checkTierRateLimit } from './lib/rate-limiter.js';
 import { generateResumeDocx } from './lib/docx-generator.js';
-
-dotenv.config();
+import {
+  SESSION_COOKIE,
+  issueSession,
+  verifySession,
+  isGuestId,
+  SessionPayload,
+} from './lib/session.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,34 +68,31 @@ interface SessionRequest extends Request {
   sessionToken?: string;
   isGuestSession?: boolean;
   activeUserId?: string;
+  session?: SessionPayload;
 }
 
 // Middleware: resolves guest or authenticated user identity
 app.use((req: SessionRequest, res: Response, next: NextFunction) => {
-  let guestCookie = req.cookies['resumesetu_guest_token'];
-  const headerGuestToken = req.headers['x-guest-token'] as string;
+  const signed = verifySession(req.cookies?.[SESSION_COOKIE]);
+  const activeUserId = signed?.uid || `guest_${crypto.randomUUID()}`;
 
-  // Resolve or issue guest session token
-  if (!guestCookie) {
-    if (headerGuestToken) {
-      guestCookie = headerGuestToken;
-    } else {
-      guestCookie = `guest_${crypto.randomUUID()}`;
-    }
+  const isGuestSession = isGuestId(activeUserId);
 
-    // Set httpOnly cookie with 30-day lifespan
-    res.cookie('resumesetu_guest_token', guestCookie, {
+  // Set httpOnly cookie with 30-day lifespan
+  if (!signed || signed.uid !== activeUserId) {
+    res.cookie(SESSION_COOKIE, issueSession(activeUserId, isGuestSession), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/',
     });
   }
 
-  req.sessionToken = guestCookie;
-  req.isGuestSession = !req.headers.authorization && !req.query.userId;
-  req.activeUserId = (req.query.userId as string) || (req.body?.userId as string) || guestCookie;
+  req.sessionToken = activeUserId;
+  req.isGuestSession = isGuestSession;
+  req.activeUserId = activeUserId;
+  req.session = signed ?? undefined;
 
   next();
 });
@@ -95,100 +101,175 @@ app.use((req: SessionRequest, res: Response, next: NextFunction) => {
 // 1. AUTHENTICATION & SESSION ROUTES
 // -----------------------------------------------------------------------------
 
-// Session introspection: returns active session state
-app.get('/api/auth/session', (req: SessionRequest, res: Response) => {
-  const userId = req.activeUserId || req.sessionToken || 'user_demo_free';
-  const user = db.getUser(userId);
-  const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
-  const tierLimit = checkTierRateLimit(userId, ip);
-
-  res.json({
-    success: true,
-    isGuest: !user || user.id.startsWith('guest_'),
-    guestToken: req.sessionToken,
-    user: user || {
-      id: userId,
-      email: `${userId}@guest.resumesetu.app`,
-      currentPlan: 'FREE',
-      monthlyScansUsed: 0,
-      creditResetDate: new Date(Date.now() + 30 * 86400000).toISOString(),
-    },
-    quota: tierLimit,
-  });
-});
-
 // Get or sync authenticated user
-app.get('/api/auth/me', (req: Request, res: Response) => {
-  const userId = (req.query.userId as string) || 'user_demo_free';
-  let user = db.getUser(userId);
-
-  if (!user && userId.startsWith('user_')) {
-    user = db.getOrCreateUser(userId, `${userId}@example.com`);
+app.get('/api/auth/me', async (req: SessionRequest, res: Response) => {
+  const userId = req.activeUserId;
+  if (!userId || req.isGuestSession) {
+    return res.status(401).json({ success: false, error: 'Sign in to access your account.' });
   }
 
-  if (user && user.email.toLowerCase().trim() === 'anjana2771patel@gmail.com') {
-    user.isAdmin = true;
-    user.role = 'OWNER';
-    user.currentPlan = 'PRO';
-  }
+  const user = await db.getUser(userId);
 
   res.json({ success: true, user });
 });
 
-// Login / provision user
-app.post('/api/auth/login', (req: SessionRequest, res: Response) => {
-  const { email, userId, plan = 'free', guestToken } = req.body;
-  const targetId = userId || `usr_${crypto.randomBytes(4).toString('hex')}`;
-  const targetEmail = (email || 'candidate@resumesetu.ai').trim();
-  const isOwner = targetEmail.toLowerCase() === 'anjana2771patel@gmail.com';
+// Login / provision only from a verified Clerk session token.
+app.post('/api/auth/login', async (req: SessionRequest, res: Response) => {
+  const bearer = req.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!bearer || !secretKey) {
+    return res.status(bearer ? 503 : 401).json({ success: false, error: 'A valid Clerk session is required.' });
+  }
 
-  let user = db.getUser(targetId);
-
-  if (!user) {
-    user = db.getOrCreateUser(targetId, targetEmail);
-    if (isOwner || plan.toUpperCase() === 'PRO') {
-      db.upgradeToPro(user.id);
-      user = db.getUser(user.id)!;
+  let subject: string;
+  try {
+    const authorizedParties = (process.env.CLERK_AUTHORIZED_PARTIES || '')
+      .split(',')
+      .map((party) => party.trim())
+      .filter(Boolean);
+    const claims = await verifyToken(bearer, {
+      secretKey,
+      ...(authorizedParties.length ? { authorizedParties } : {}),
+    });
+    if (typeof claims.sub !== 'string' || !claims.sub) {
+      return res.status(401).json({ success: false, error: 'Invalid Clerk session.' });
     }
+    subject = claims.sub;
+  } catch {
+    return res.status(401).json({ success: false, error: 'Invalid Clerk session.' });
   }
 
-  if (isOwner && user) {
-    user.isAdmin = true;
-    user.role = 'OWNER';
-    user.currentPlan = 'PRO';
-  }
+  try {
+    const clerkUser = await clerkClient.users.getUser(subject);
+    const primaryEmail = clerkUser.emailAddresses.find(
+      (address) => address.id === clerkUser.primaryEmailAddressId
+    );
+    if (!primaryEmail?.emailAddress || primaryEmail.verification?.status !== 'verified') {
+      return res.status(403).json({ success: false, error: 'A verified primary email is required.' });
+    }
 
-  // Trigger automatic migration from guest token if provided
-  const sourceGuest = guestToken || req.sessionToken;
-  if (sourceGuest && sourceGuest !== user.id) {
-    db.migrateGuestData(sourceGuest, user.id);
-  }
+    const targetEmail = primaryEmail.emailAddress.trim().toLowerCase();
+    const existingUser = await db.getOrCreateUser(subject, targetEmail, 'clerk');
+    const user = await db.updateUserProfile(existingUser.id, {
+      email: targetEmail,
+      displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || null,
+      authProviderId: 'clerk',
+    }) || existingUser;
 
-  res.json({ success: true, user });
+    const { guestToken } = req.body || {};
+    if (guestToken && isGuestId(guestToken) && req.isGuestSession && guestToken === req.activeUserId) {
+      await db.migrateGuestData(guestToken, user.id);
+    }
+
+    res.cookie(SESSION_COOKIE, issueSession(user.id, false), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error('[Clerk Auth] user sync failed:', err);
+    res.status(503).json({ success: false, error: 'Could not verify the Clerk account. Please retry.' });
+  }
+});
+
+app.post('/api/auth/logout', (_req: Request, res: Response) => {
+  res.clearCookie(SESSION_COOKIE, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+  });
+  res.json({ success: true });
 });
 
 // Database Migration: Links guest scans, uploaded resumes, and applications to authenticated User ID
-app.post('/api/auth/migrate-guest', (req: SessionRequest, res: Response) => {
+app.post('/api/auth/migrate-guest', async (req: SessionRequest, res: Response) => {
   const { authenticatedUserId, guestToken } = req.body;
-  const sourceGuest = guestToken || req.sessionToken;
+  const sessionUserId = req.activeUserId;
 
-  if (!authenticatedUserId || !sourceGuest) {
+  if (!authenticatedUserId || !guestToken) {
     return res.status(400).json({
       success: false,
       error: 'authenticatedUserId and guestToken are required for migration.',
     });
   }
 
-  const migrationResult = db.migrateGuestData(sourceGuest, authenticatedUserId);
+  // The caller must be authenticated, and may only migrate the guest session
+  // bound to their own cookie. Without this check any visitor could claim
+  // another account's resumes and scans.
+  if (!sessionUserId || isGuestId(sessionUserId)) {
+    return res.status(401).json({
+      success: false,
+      error: 'Sign in before migrating guest data.',
+    });
+  }
 
-  // Clear guest cookie after successful migration
-  res.clearCookie('resumesetu_guest_token');
+  const ownsGuestSession = guestToken === sessionUserId;
+
+  if (!ownsGuestSession) {
+    await db.addSecurityLog({
+      event: 'RATE_LIMIT_HIT',
+      severity: 'warning',
+      details: `Blocked guest migration attempt: session ${sessionUserId} tried to migrate ${guestToken}.`,
+      actorEmail: (await db.getUser(sessionUserId))?.email,
+    });
+    return res.status(403).json({
+      success: false,
+      error: 'You can only migrate the guest session belonging to this browser.',
+    });
+  }
+
+  const migrationResult = await db.migrateGuestData(guestToken, authenticatedUserId);
+
+  // Clear guest session after successful migration
+  res.clearCookie(SESSION_COOKIE);
 
   res.json({
     success: true,
     message: 'Guest data successfully migrated to authenticated account.',
     migrationResult,
   });
+});
+
+// Pro activation is manual; the authenticated self-service endpoint must never
+// grant a paid plan without payment confirmation.
+app.post('/api/auth/upgrade-pro', (req: SessionRequest, res: Response) => {
+  res.status(403).json({
+    success: false,
+    error: 'Pro activation is handled manually after payment confirmation. Contact the admin through the payment link.',
+  });
+});
+
+app.post('/api/auth/cancel-pro', async (req: SessionRequest, res: Response) => {
+  const userId = req.activeUserId;
+  if (!userId || isGuestId(userId)) {
+    return res.status(401).json({
+      success: false,
+      error: 'Sign in before managing your plan.',
+    });
+  }
+
+  const user = await db.getUser(userId);
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found.' });
+  }
+  if (user.currentPlan !== 'PRO') {
+    return res.json({ success: true, alreadyFree: true, user });
+  }
+
+  const downgraded = await db.downgradeToFree(userId);
+  await db.addSecurityLog({
+    event: 'PRO_TOGGLED',
+    severity: 'info',
+    details: `Plan cancelled, downgraded to FREE for ${downgraded.email}.`,
+    targetUserId: userId,
+  });
+
+  res.json({ success: true, user: await db.getUser(userId) });
 });
 
 // -----------------------------------------------------------------------------
@@ -200,6 +281,9 @@ app.post(
   upload.single('resume'),
   async (req: SessionRequest, res: Response) => {
     try {
+      if (req.isGuestSession) {
+        return res.status(401).json({ success: false, error: 'Sign in before uploading a resume.' });
+      }
       if (!req.file) {
         return res.status(400).json({ success: false, error: 'No file uploaded.' });
       }
@@ -212,24 +296,31 @@ app.post(
       // 1. Extract text, strip formatting, and validate OCR readability
       const parseResult = await extractResumeText(fileBuffer, mimeType, originalFileName);
 
-      // 2. Store in encrypted object storage (AES-256-GCM / Cloud)
+      // 2. Store in encrypted object storage (AES-256-GCM)
       const stored = await storageService.storeFile(fileBuffer, originalFileName, mimeType);
 
       // 3. Persist Resume model in database
-      const resume = db.createResume({
+      const resume = await db.createResume({
         userId,
         originalFileName,
         fileUrl: stored.fileUrl,
+        storageKey: stored.storageKey,
+        storageProvider: stored.storageProvider,
+        mimeType: stored.mimeType,
         parsedText: parseResult.text,
         starFormattedBullets: null,
       });
+
+      // 4. Public URL is authorization-gated rather than a static vault path.
+      resume.downloadUrl = `/api/resumes/${resume.id}/file`;
+      await db.updateResume(resume.id, { downloadUrl: resume.downloadUrl });
 
       res.json({
         success: true,
         resume,
         ocrReadabilityScore: parseResult.ocrReadabilityScore,
         wordCount: parseResult.wordCount,
-        textPreview: parseResult.text.slice(0, 300) + '...',
+        textPreview: parseResult.text.slice(0, 300),
       });
     } catch (err: any) {
       console.error('[Upload] Pipeline error:', err);
@@ -280,12 +371,16 @@ Lead Product Manager | Enterprise SaaS Corp (2021 - Present)
 
 app.post('/api/check', upload.single('resume'), async (req: SessionRequest, res: Response) => {
   try {
-    const { job_description, sample_type, userId: clientUserId } = req.body;
-    const activeUserId = clientUserId || req.activeUserId || req.sessionToken || 'guest_user';
+    if (req.isGuestSession) {
+      return res.status(401).json({ success: false, error: 'Sign in before analyzing a resume.' });
+    }
+
+    const { job_description, sample_type } = req.body;
+    const activeUserId = req.activeUserId || req.sessionToken || 'guest_user';
     const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
 
     // 0. Banned Account Check
-    const activeUserRecord = db.getUser(activeUserId);
+    const activeUserRecord = await db.getUser(activeUserId);
     if (activeUserRecord?.isBanned) {
       return res.status(403).json({
         success: false,
@@ -293,14 +388,27 @@ app.post('/api/check', upload.single('resume'), async (req: SessionRequest, res:
       });
     }
 
-    // 1. Redis-compatible 30-Day Rate Limit & Tier Enforcement
-    const quotaCheck = checkTierRateLimit(activeUserId, ip);
+    // 1. Tier quota + per-IP throttle.
+    // Quota exhaustion is a genuine paywall event (402). Throttling is not:
+    // it returns 429 so the client can retry instead of showing an upgrade prompt.
+    const quotaCheck = await checkTierRateLimit(activeUserId, ip, { enforceBurst: true });
     if (!quotaCheck.allowed) {
-      return res.status(402).json({
+      if (quotaCheck.paywallRequired) {
+        return res.status(402).json({
+          success: false,
+          paywall_required: true,
+          error: quotaCheck.reason,
+          remainingScans: 0,
+        });
+      }
+      if (quotaCheck.retryAfterSeconds) {
+        res.setHeader('Retry-After', String(quotaCheck.retryAfterSeconds));
+      }
+      return res.status(429).json({
         success: false,
-        paywall_required: true,
+        paywall_required: false,
         error: quotaCheck.reason,
-        remainingScans: 0,
+        retryAfterSeconds: quotaCheck.retryAfterSeconds,
       });
     }
 
@@ -326,28 +434,18 @@ app.post('/api/check', upload.single('resume'), async (req: SessionRequest, res:
     let resumeText = '';
     let fileName = 'Uploaded_Resume.pdf';
     let fileUrl = '/uploads/sample_resume.pdf';
+    let parsedResume: Awaited<ReturnType<typeof extractResumeText>> | null = null;
 
-    // 2. Resolve Resume Text (via Uploaded file or Sample)
+    // Validate and parse before reserving quota so malformed uploads do not
+    // consume a scan allowance.
     if (req.file) {
       fileName = req.file.originalname;
-      const parseResult = await extractResumeText(
+      parsedResume = await extractResumeText(
         req.file.buffer,
         req.file.mimetype,
         fileName
       );
-      resumeText = parseResult.text;
-
-      // Encrypted storage
-      const stored = await storageService.storeFile(req.file.buffer, fileName, req.file.mimetype);
-      fileUrl = stored.fileUrl;
-
-      // Save Resume entity
-      db.createResume({
-        userId: activeUserId,
-        originalFileName: fileName,
-        fileUrl,
-        parsedText: resumeText,
-      });
+      resumeText = parsedResume.text;
     } else if (sample_type && PRESET_RESUMES[sample_type]) {
       resumeText = PRESET_RESUMES[sample_type];
       fileName = `${sample_type}_sample.pdf`;
@@ -355,6 +453,33 @@ app.post('/api/check', upload.single('resume'), async (req: SessionRequest, res:
       return res.status(400).json({
         success: false,
         error: 'Please upload a resume file or select a sample candidate.',
+      });
+    }
+
+    const quotaReservation = await db.incrementScanUsage(activeUserId);
+    if (!quotaReservation.allowed) {
+      return res.status(402).json({
+        success: false,
+        paywall_required: true,
+        error: 'Free tier scan quota reached. Upgrade to Pro for unlimited scans.',
+        remainingScans: 0,
+      });
+    }
+
+    if (req.file && parsedResume) {
+      const stored = await storageService.storeFile(req.file.buffer, fileName, req.file.mimetype);
+      fileUrl = stored.fileUrl;
+      const savedResume = await db.createResume({
+        userId: activeUserId,
+        originalFileName: fileName,
+        fileUrl,
+        storageKey: stored.storageKey,
+        storageProvider: stored.storageProvider,
+        mimeType: stored.mimeType,
+        parsedText: resumeText,
+      });
+      await db.updateResume(savedResume.id, {
+        downloadUrl: `/api/resumes/${savedResume.id}/file`,
       });
     }
 
@@ -367,10 +492,8 @@ app.post('/api/check', upload.single('resume'), async (req: SessionRequest, res:
     const company = job_description.match(/at\s+([A-Za-z0-9\s&.-]+)/i)?.[1]?.trim() || 'Hiring Organization';
 
     // 4. Increment scan quota in DB
-    db.incrementScanUsage(activeUserId);
-
     // 5. Persist JobScan in database
-    const jobScan = db.createJobScan({
+    const jobScan = await db.createJobScan({
       userId: activeUserId,
       jobTitle,
       companyName: company,
@@ -426,9 +549,11 @@ app.post('/api/check', upload.single('resume'), async (req: SessionRequest, res:
 // -----------------------------------------------------------------------------
 
 // Polling background task status
-app.get('/api/scan/status/:jobId', (req: Request, res: Response) => {
+app.get('/api/scan/status/:jobId', (req: SessionRequest, res: Response) => {
   const { jobId } = req.params;
-  const job = taskQueue.getJob(jobId);
+  // Ownership is enforced: a job carries the user's tailored resume and cover
+  // letter, so it must never be readable by another session (or anonymously).
+  const job = taskQueue.getJob(jobId, req.activeUserId);
 
   if (!job) {
     return res.status(404).json({ success: false, error: 'Background task not found.' });
@@ -438,17 +563,29 @@ app.get('/api/scan/status/:jobId', (req: Request, res: Response) => {
 });
 
 // Server-Sent Events (SSE) Streaming endpoint for background AI worker progress
-app.get('/api/scan/stream/:jobId', (req: Request, res: Response) => {
+app.get('/api/scan/stream/:jobId', (req: SessionRequest, res: Response) => {
   const { jobId } = req.params;
+
+  // This endpoint streams the tailored resume and cover letter, so it requires
+  // an authenticated session that owns the job. It previously had no auth at
+  // all, leaking another user's generated documents to anonymous callers.
+  if (req.isGuestSession) {
+    return res.status(401).json({ success: false, error: 'Sign in to stream scan progress.' });
+  }
+  const job = taskQueue.getJob(jobId, req.activeUserId);
+  if (!job) {
+    return res.status(404).json({ success: false, error: 'Background task not found.' });
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
 
-  const unsubscribe = taskQueue.subscribe(jobId, (job) => {
-    res.write(`data: ${JSON.stringify(job)}\n\n`);
-    if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+  const unsubscribe = taskQueue.subscribe(jobId, (updated) => {
+    res.write(`data: ${JSON.stringify(updated)}\n\n`);
+    if (updated.status === 'COMPLETED' || updated.status === 'FAILED') {
       res.end();
       unsubscribe();
     }
@@ -464,14 +601,16 @@ app.get('/api/scan/stream/:jobId', (req: Request, res: Response) => {
 // -----------------------------------------------------------------------------
 
 // List user applications
-app.get('/api/applications', (req: SessionRequest, res: Response) => {
+app.get('/api/applications', async (req: SessionRequest, res: Response) => {
+  if (req.isGuestSession) return res.status(401).json({ success: false, error: 'Sign in to access applications.' });
   const userId = req.activeUserId || req.sessionToken || 'guest_user';
-  const applications = db.getApplicationsByUser(userId);
+  const applications = await db.getApplicationsByUser(userId);
   res.json({ success: true, applications });
 });
 
 // Create tracked application
-app.post('/api/applications', (req: SessionRequest, res: Response) => {
+app.post('/api/applications', async (req: SessionRequest, res: Response) => {
+  if (req.isGuestSession) return res.status(401).json({ success: false, error: 'Sign in to track applications.' });
   const { company, role, matchScore, status, notes } = req.body;
   const userId = req.activeUserId || req.sessionToken || 'guest_user';
 
@@ -479,7 +618,7 @@ app.post('/api/applications', (req: SessionRequest, res: Response) => {
     return res.status(400).json({ success: false, error: 'Company and role are required.' });
   }
 
-  const application = db.createApplication({
+  const application = await db.createApplication({
     userId,
     company,
     role,
@@ -493,11 +632,20 @@ app.post('/api/applications', (req: SessionRequest, res: Response) => {
 });
 
 // Update application stage/status
-app.patch('/api/applications/:id', (req: Request, res: Response) => {
+app.patch('/api/applications/:id', async (req: SessionRequest, res: Response) => {
+  if (req.isGuestSession) return res.status(401).json({ success: false, error: 'Sign in to update applications.' });
   const { id } = req.params;
-  const updates = req.body;
+  const userId = req.activeUserId || '';
+  const { company, role, matchScore, status, notes, appliedDate } = req.body || {};
+  const updates: Partial<Pick<ApplicationTracker, 'company' | 'role' | 'matchScore' | 'status' | 'notes' | 'appliedDate'>> = {};
+  if (typeof company === 'string') updates.company = company;
+  if (typeof role === 'string') updates.role = role;
+  if (typeof matchScore === 'number' && Number.isFinite(matchScore)) updates.matchScore = matchScore;
+  if (['APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED'].includes(status)) updates.status = status;
+  if (typeof notes === 'string') updates.notes = notes;
+  if (typeof appliedDate === 'string') updates.appliedDate = appliedDate;
 
-  const updated = db.updateApplication(id, updates);
+  const updated = await db.updateApplication(id, userId, updates);
   if (!updated) {
     return res.status(404).json({ success: false, error: 'Application not found.' });
   }
@@ -506,9 +654,11 @@ app.patch('/api/applications/:id', (req: Request, res: Response) => {
 });
 
 // Delete application
-app.delete('/api/applications/:id', (req: Request, res: Response) => {
+app.delete('/api/applications/:id', async (req: SessionRequest, res: Response) => {
+  if (req.isGuestSession) return res.status(401).json({ success: false, error: 'Sign in to delete applications.' });
   const { id } = req.params;
-  const deleted = db.deleteApplication(id);
+  const userId = req.activeUserId || '';
+  const deleted = await db.deleteApplication(id, userId);
   res.json({ success: deleted });
 });
 
@@ -516,9 +666,10 @@ app.delete('/api/applications/:id', (req: Request, res: Response) => {
 // 6. HISTORY, TAILORING & EXPORT ROUTES
 // -----------------------------------------------------------------------------
 
-app.get('/api/history', (req: SessionRequest, res: Response) => {
+app.get('/api/history', async (req: SessionRequest, res: Response) => {
+  if (req.isGuestSession) return res.status(401).json({ success: false, error: 'Sign in to access scan history.' });
   const userId = req.activeUserId || req.sessionToken || 'guest_user';
-  const scans = db.getJobScansByUser(userId);
+  const scans = await db.getJobScansByUser(userId);
 
   // Map to frontend ResumeCheck model
   const checks = scans.map((s) => ({
@@ -540,16 +691,26 @@ app.get('/api/history', (req: SessionRequest, res: Response) => {
 });
 
 // Explicit on-demand tailoring endpoint
-app.post('/api/tailor', async (req: Request, res: Response) => {
+app.post('/api/tailor', async (req: SessionRequest, res: Response) => {
   try {
-    const { check_id, userId } = req.body;
-    const scan = db.getJobScan(check_id);
+    if (req.isGuestSession) return res.status(401).json({ success: false, error: 'Sign in before tailoring a resume.' });
+    const { check_id } = req.body;
+    const sessionUserId = req.activeUserId;
+    const scan = await db.getJobScan(check_id);
 
     if (!scan) {
       return res.status(404).json({ success: false, error: 'Scan record not found.' });
     }
 
-    const user = db.getUser(userId || scan.userId);
+    // The scan must belong to this session. Previously the caller supplied an
+    // arbitrary userId, so any Pro user could read AND overwrite another
+    // candidate's scan record.
+    if (scan.userId !== sessionUserId && !(await verifyAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Access denied.' });
+    }
+
+    // Plan check uses the session identity, never a client-supplied id.
+    const user = await db.getUser(scan.userId);
     if (user?.currentPlan !== 'PRO') {
       return res.status(402).json({
         success: false,
@@ -565,9 +726,11 @@ app.post('/api/tailor', async (req: Request, res: Response) => {
       missingKeywords: scan.missingKeywords,
     });
 
-    db.updateJobScan(scan.id, {
+    await db.updateJobScan(scan.id, {
       tailoredResumeText: tailorResult.tailored_resume_text,
       coverLetterText: tailorResult.cover_letter_text,
+      tailoredSynthetic: Boolean(tailorResult.synthetic),
+      tailoredNotice: tailorResult.notice,
     });
 
     res.json({
@@ -581,13 +744,22 @@ app.post('/api/tailor', async (req: Request, res: Response) => {
 });
 
 // Download DOCX endpoint
-app.post('/api/download-docx', async (req: Request, res: Response) => {
+app.post('/api/download-docx', async (req: SessionRequest, res: Response) => {
   try {
+    if (req.isGuestSession) return res.status(401).json({ success: false, error: 'Sign in before downloading a resume.' });
     const { check_id } = req.body;
-    const scan = db.getJobScan(check_id);
+    const sessionUserId = req.activeUserId;
+    const scan = await db.getJobScan(check_id);
 
     if (!scan) {
       return res.status(404).json({ success: false, error: 'Scan record not found.' });
+    }
+
+    // Ownership check: this returns the candidate's tailored resume, so it must
+    // never be downloadable by another session (it previously accepted any
+    // check_id from any caller, including completely unauthenticated ones).
+    if (scan.userId !== sessionUserId && !(await verifyAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Access denied.' });
     }
 
     const resumeContent =
@@ -622,111 +794,163 @@ ${scan.missingKeywords.join(', ')}`;
   }
 });
 
+// Authorized download of the original resume document.
+//
+// The encrypted vault is no longer served as a static directory of ciphertext;
+// the plaintext is decrypted only for the session that owns the record.
+app.get('/api/resumes/:id/file', async (req: SessionRequest, res: Response) => {
+  const resume = await db.getResume(req.params.id);
+  if (!resume) {
+    return res.status(404).json({ success: false, error: 'Resume not found.' });
+  }
+
+  const callerId = req.activeUserId || '';
+  if (resume.userId !== callerId && !(await verifyAdmin(req))) {
+    return res.status(403).json({ success: false, error: 'Access denied.' });
+  }
+
+  if (!resume.storageKey) {
+    return res
+      .status(410)
+      .json({ success: false, error: 'Original document is no longer retained.' });
+  }
+
+  const bytes = await storageService.readStoredFile(resume.storageKey, resume.storageProvider);
+  if (!bytes) {
+    return res
+      .status(410)
+      .json({ success: false, error: 'Original document could not be decrypted.' });
+  }
+
+  res.setHeader('Content-Type', resume.mimeType || 'application/octet-stream');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${resume.originalFileName.replace(/["\r\n]/g, '')}"`
+  );
+  res.send(bytes);
+});
+
 // Delete all user data (Right to be Forgotten)
-app.post('/api/auth/delete-data', (req: Request, res: Response) => {
-  const { userId } = req.body;
-  if (!userId) {
+app.post('/api/auth/delete-data', async (req: SessionRequest, res: Response) => {
+  const requestedId = req.body?.userId;
+  const sessionUserId = req.activeUserId || '';
+
+  // A session may delete its own data. Anything else requires admin rights.
+  if (requestedId !== sessionUserId && !(await verifyAdmin(req))) {
+    return res.status(403).json({ success: false, error: 'Access denied.' });
+  }
+  if (!requestedId) {
     return res.status(400).json({ success: false, error: 'userId is required.' });
   }
 
-  const success = db.deleteUser(userId);
-  res.json({ success, message: 'All user data, resumes, and scans have been permanently deleted.' });
+  // Remove encrypted documents before dropping the database rows, otherwise the
+  // ciphertext outlives the "permanently deleted" confirmation.
+  let filesRemoved = 0;
+  for (const resume of await db.getResumesByUser(requestedId)) {
+    if (resume.storageKey && await storageService.deleteStoredFile(resume.storageKey, resume.storageProvider)) {
+      filesRemoved++;
+    }
+  }
+
+  const success = await db.deleteUser(requestedId);
+
+  res.clearCookie(SESSION_COOKIE);
+
+  res.json({
+    success,
+    filesRemoved,
+    message: `All user data, resumes, and scans have been permanently deleted. ${filesRemoved} stored document(s) removed.`,
+  });
 });
 
 // -----------------------------------------------------------------------------
 // 7. ADMIN PANEL OPERATIONS (/api/admin)
 // -----------------------------------------------------------------------------
 
-function verifyAdmin(req: Request): boolean {
-  const headerEmail = (req.headers['x-user-email'] as string || '').toLowerCase().trim();
-  const headerUserId = (req.headers['x-user-id'] as string || '').trim();
-  const queryEmail = (req.query.adminEmail as string || '').toLowerCase().trim();
-  const queryUserId = (req.query.adminUserId as string || '').trim();
+/**
+ * Resolves the caller from the HMAC-signed session cookie and checks their
+ * database record for admin privileges.
+ *
+ * This previously trusted an `x-user-email` request header, so a single
+ * spoofed header granted full administrative access to every user record.
+ */
+async function verifyAdmin(req: SessionRequest): Promise<boolean> {
+  const payload = req.session ?? verifySession(req.cookies?.[SESSION_COOKIE]);
+  if (!payload) return false;
+  if (isGuestId(payload.uid)) return false;
 
-  const candidateEmail = headerEmail || queryEmail;
-  const candidateId = headerUserId || queryUserId;
+  const user = await db.getUser(payload.uid);
+  if (!user) return false;
 
-  if (candidateEmail === 'anjana2771patel@gmail.com') return true;
+  return user.isAdmin === true || user.role === 'OWNER' || user.role === 'ADMIN';
+}
 
-  if (candidateId) {
-    const user = db.getUser(candidateId);
-    if (user?.isAdmin || user?.role === 'OWNER' || user?.email?.toLowerCase().trim() === 'anjana2771patel@gmail.com') {
-      return true;
-    }
-  }
-
+/** Shared guard for every /api/admin route. */
+async function requireAdmin(req: SessionRequest, res: Response): Promise<boolean> {
+  if (await verifyAdmin(req)) return true;
+  res.status(403).json({
+    success: false,
+    error: 'Access denied: Admin/Owner privileges required.',
+  });
   return false;
 }
 
-app.get('/api/admin/stats', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied: Admin/Owner privileges required.' });
-  }
-  const stats = db.getStats();
+app.get('/api/admin/stats', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
+  const stats = await db.getStats();
   res.json({ success: true, stats });
 });
 
-app.get('/api/admin/users', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied: Admin/Owner privileges required.' });
-  }
-  const users = db.getAllUsers();
+app.get('/api/admin/users', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
+  const users = await db.getAllUsers();
   res.json({ success: true, users });
 });
 
-app.post('/api/admin/toggle-pro', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied: Admin/Owner privileges required.' });
-  }
+app.post('/api/admin/toggle-pro', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
-  const updatedUser = db.toggleUserPro(userId);
+  const updatedUser = await db.toggleUserPro(userId);
   res.json({ success: true, user: updatedUser });
 });
 
-app.post('/api/admin/add-credits', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied: Admin/Owner privileges required.' });
-  }
+app.post('/api/admin/add-credits', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { userId, credits = 3 } = req.body;
   if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
-  const updatedUser = db.addUserCredits(userId, Number(credits));
+  const updatedUser = await db.addUserCredits(userId, Number(credits));
   res.json({ success: true, user: updatedUser });
 });
 
 // Toggle Admin Role
-app.post('/api/admin/toggle-admin', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied: Admin/Owner privileges required.' });
-  }
+app.post('/api/admin/toggle-admin', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { userId, isAdmin } = req.body;
   if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
-  const updatedUser = db.makeUserAdmin(userId, Boolean(isAdmin));
+  const updatedUser = await db.makeUserAdmin(userId, Boolean(isAdmin));
   res.json({ success: true, user: updatedUser });
 });
 
 // Set Plan Directly (FREE or PRO)
-app.post('/api/admin/set-plan', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied: Admin/Owner privileges required.' });
-  }
+app.post('/api/admin/set-plan', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { userId, plan } = req.body;
   if (!userId || !['FREE', 'PRO'].includes(plan)) {
     return res.status(400).json({ success: false, error: 'userId and valid plan (FREE | PRO) required' });
   }
-  const updatedUser = db.setUserPlan(userId, plan);
+  const updatedUser = await db.setUserPlan(userId, plan);
   res.json({ success: true, user: updatedUser });
 });
 
 // Ban / Unban User
-app.post('/api/admin/ban-user', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied: Admin/Owner privileges required.' });
-  }
+app.post('/api/admin/ban-user', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { userId, isBanned, banReason } = req.body;
   if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
   try {
-    const updatedUser = db.banUser(userId, Boolean(isBanned), banReason);
+    const updatedUser = await db.banUser(userId, Boolean(isBanned), banReason);
     res.json({ success: true, user: updatedUser });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message || 'Failed to update ban status' });
@@ -734,14 +958,12 @@ app.post('/api/admin/ban-user', (req: Request, res: Response) => {
 });
 
 // Edit User Profile / Details
-app.post('/api/admin/edit-user', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied: Admin/Owner privileges required.' });
-  }
+app.post('/api/admin/edit-user', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { userId, updates } = req.body;
   if (!userId || !updates) return res.status(400).json({ success: false, error: 'userId and updates required' });
   try {
-    const updatedUser = db.editUser(userId, updates);
+    const updatedUser = await db.editUser(userId, updates);
     res.json({ success: true, user: updatedUser });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message || 'Failed to edit user' });
@@ -749,33 +971,27 @@ app.post('/api/admin/edit-user', (req: Request, res: Response) => {
 });
 
 // Delete User Record
-app.post('/api/admin/delete-user', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied: Admin/Owner privileges required.' });
-  }
+app.post('/api/admin/delete-user', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
-  const success = db.deleteUser(userId);
+  const success = await db.deleteUser(userId);
   res.json({ success, message: success ? 'User removed from directory.' : 'User not found.' });
 });
 
 // LLM Configuration Management
-app.get('/api/admin/llms', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
-  res.json({ success: true, llms: db.getLLMConfigs() });
+app.get('/api/admin/llms', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
+  res.json({ success: true, llms: await db.getLLMConfigs() });
 });
 
-app.post('/api/admin/llms', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
+app.post('/api/admin/llms', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { name, provider, modelId, contextWindow, latencyTier, apiKeyEnv } = req.body;
   if (!name || !provider || !modelId) {
     return res.status(400).json({ success: false, error: 'Name, provider, and modelId are required.' });
   }
-  const newLLM = db.addLLMConfig({
+  const newLLM = await db.addLLMConfig({
     name,
     provider,
     modelId,
@@ -787,80 +1003,64 @@ app.post('/api/admin/llms', (req: Request, res: Response) => {
   res.json({ success: true, llm: newLLM });
 });
 
-app.put('/api/admin/llms/:id', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
+app.put('/api/admin/llms/:id', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { id } = req.params;
   const updates = req.body;
   try {
-    const updated = db.updateLLMConfig(id, updates);
+    const updated = await db.updateLLMConfig(id, updates);
     res.json({ success: true, llm: updated });
   } catch (err: any) {
     res.status(404).json({ success: false, error: err?.message || 'LLM not found.' });
   }
 });
 
-app.delete('/api/admin/llms/:id', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
+app.delete('/api/admin/llms/:id', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { id } = req.params;
-  const success = db.deleteLLMConfig(id);
+  const success = await db.deleteLLMConfig(id);
   res.json({ success, message: success ? 'LLM removed' : 'LLM not found' });
 });
 
 // Dynamic Task Binding Management
-app.get('/api/admin/llm-bindings', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
-  res.json({ success: true, bindings: db.getTaskBindings() });
+app.get('/api/admin/llm-bindings', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
+  res.json({ success: true, bindings: await db.getTaskBindings() });
 });
 
-app.post('/api/admin/llm-bindings', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
+app.post('/api/admin/llm-bindings', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const { task, primaryModelId, fallbackModelId } = req.body;
   if (!task || !primaryModelId || !fallbackModelId) {
     return res.status(400).json({ success: false, error: 'task, primaryModelId, and fallbackModelId required.' });
   }
-  const updatedBinding = db.saveTaskBinding(task, primaryModelId, fallbackModelId);
+  const updatedBinding = await db.saveTaskBinding(task, primaryModelId, fallbackModelId);
   res.json({ success: true, binding: updatedBinding });
 });
 
 // System Settings Management
-app.get('/api/admin/settings', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
-  res.json({ success: true, settings: db.getSystemSettings() });
+app.get('/api/admin/settings', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
+  res.json({ success: true, settings: await db.getSystemSettings() });
 });
 
-app.post('/api/admin/settings', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
+app.post('/api/admin/settings', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const updates = req.body;
-  const updatedSettings = db.updateSystemSettings(updates);
+  const updatedSettings = await db.updateSystemSettings(updates);
   res.json({ success: true, settings: updatedSettings });
 });
 
 // Security Logs
-app.get('/api/admin/security-logs', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
-  const logs = db.getSecurityLogs(50);
+app.get('/api/admin/security-logs', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
+  const logs = await db.getSecurityLogs(50);
   res.json({ success: true, logs });
 });
 
 // Real System Health & Monitoring
-app.get('/api/admin/system-health', (req: Request, res: Response) => {
-  if (!verifyAdmin(req)) {
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
+app.get('/api/admin/system-health', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
   const memory = process.memoryUsage();
   const uptimeSeconds = Math.floor(process.uptime());
   const hours = Math.floor(uptimeSeconds / 3600);
@@ -891,10 +1091,11 @@ app.get('/api/admin/system-health', (req: Request, res: Response) => {
 });
 
 // Frontend Time & Activity Ping
-app.post('/api/analytics/ping', (req: Request, res: Response) => {
-  const { userId, seconds = 30, page = 'workspace' } = req.body;
-  if (userId) {
-    db.recordUserSessionPing(userId, Number(seconds), String(page));
+app.post('/api/analytics/ping', async (req: SessionRequest, res: Response) => {
+  const userId = req.activeUserId;
+  const { seconds = 30, page = 'workspace' } = req.body || {};
+  if (userId && !req.isGuestSession) {
+    await db.recordUserSessionPing(userId, Number(seconds), String(page));
   }
   res.json({ success: true });
 });
@@ -904,6 +1105,14 @@ app.post('/api/analytics/ping', (req: Request, res: Response) => {
 // -----------------------------------------------------------------------------
 
 async function startServer() {
+  await db.verifyConnection();
+  await storageService.verifyConfiguration();
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) return next(err);
+    console.error('[API] Unhandled request error:', err);
+    res.status(500).json({ success: false, error: 'The request could not be completed.' });
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -912,8 +1121,25 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    // Gzip enabled: the JS/CSS bundle is ~825 KB raw (~209 KB gzipped) and was
+    // previously shipped uncompressed on every page load.
+    app.use(compression());
+    // Hashed build assets are safe to cache forever; index.html must always be
+    // revalidated so clients pick up new asset filenames after a deploy.
+    app.use(
+      express.static(path.resolve(__dirname, 'dist'), {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          } else {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      })
+    );
     app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }

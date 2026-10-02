@@ -7,10 +7,12 @@
       "credits_remaining": 1,
       "razorpay_subscription_id": null,
       "created_at": "2026-09-23T12:25:13.356Z",
-      "isAdmin": true,
-      "role": "ADMIN",
-      "updatedAt": "2026-10-01T03:41:15.197Z",
-      "isBanned": false
+      "role": "USER",
+      "updatedAt": "2026-10-01T06:01:10.129Z",
+      "isBanned": false,
+      "monthlyScansUsed": 0,
+      "currentPlan": "FREE",
+      "creditResetDate": "2026-10-31T05:01:48.080Z"
     },
     "user_demo_pro": {
       "id": "user_demo_pro",
@@ -18,7 +20,11 @@
       "plan": "pro",
       "credits_remaining": 9999,
       "razorpay_subscription_id": "sub_test_pro_123456",
-      "created_at": "2026-09-23T12:25:13.356Z"
+      "created_at": "2026-09-23T12:25:13.356Z",
+      "monthlyScansUsed": 0,
+      "currentPlan": "PRO",
+      "creditResetDate": "2026-10-31T05:01:48.080Z",
+      "updatedAt": "2026-10-01T06:01:10.140Z"
     },
     "LZjBHlabaVUqSmc7ZqcsVMwMuL63": {
       "id": "LZjBHlabaVUqSmc7ZqcsVMwMuL63",
@@ -32,14 +38,29 @@
     "usr_owner_anjana": {
       "id": "usr_owner_anjana",
       "email": "anjana2771patel@gmail.com",
-      "authProviderId": null,
+      "authProviderId": "clerk",
       "currentPlan": "PRO",
       "monthlyScansUsed": 0,
       "creditResetDate": "2026-10-30T16:01:15.117Z",
       "isAdmin": true,
       "role": "OWNER",
       "createdAt": "2026-09-30T16:01:15.117Z",
-      "updatedAt": "2026-10-01T03:32:48.173Z"
+      "updatedAt": "2026-10-02T04:44:25.478Z",
+      "displayName": "anjana PATEL",
+      "totalTimeSpentSeconds": 1710,
+      "lastActiveAt": "2026-10-02T05:35:58.232Z"
+    },
+    "guest_6dbb476d-a307-4325-8e09-1f1ba156e3ea": {
+      "id": "guest_6dbb476d-a307-4325-8e09-1f1ba156e3ea",
+      "email": "guest_6dbb476d-a307-4325-8e09-1f1ba156e3ea@guest.resumesetu.app",
+      "authProviderId": null,
+      "currentPlan": "FREE",
+      "monthlyScansUsed": 1,
+      "creditResetDate": "2026-10-31T12:49:18.813Z",
+      "isAdmin": false,
+      "role": "USER",
+      "createdAt": "2026-10-01T12:49:18.813Z",
+      "updatedAt": "2026-10-01T12:49:18.813Z"
     }
   },
   "resumes": {},
@@ -90,6 +111,32 @@
       "tailoredResumeText": "PROFESSIONAL SUMMARY\nHighly accomplished professional with demonstrated track record in delivering high-impact solutions. Strategically tailored for the target role with emphasized mastery in Cloud Infrastructure, Cross-functional Collaboration, KPI Optimization.\n\nCORE TECHNICAL COMPETENCIES\n- Core Technologies: Cloud Infrastructure, Cross-functional Collaboration, KPI Optimization, Full Stack Architecture\n- Methodologies: Agile / Scrum, Cross-Functional Leadership, Rapid Prototyping\n- Cloud & Infrastructure: Scalable Cloud Systems, CI/CD, Reliability Engineering\n\nPROFESSIONAL EXPERIENCE\nSenior Specialist | Tech Solutions\n- Architected enterprise-grade systems integrating Cloud Infrastructure, driving a 38% improvement in deployment velocity.\n- Spearheaded optimization initiatives resulting in 99.9% uptime and reduced operational latency.\n- Mentored junior engineers, established best practices in testing, and delivered high-impact deliverables ahead of schedule.\n\nRelevant Experience | Enterprise Dynamics\n- Collaborated across product, design, and engineering teams to deploy client-facing features adopted by 100K+ monthly active users.\n- Implemented robust monitoring and automated pipelines, reducing defect leakage by 45%.\n\nEDUCATION & CREDENTIALS\nBachelor of Science | Computer Science & Engineering",
       "coverLetterText": "Dear Hiring Team,\n\nI am writing to express my enthusiastic interest in this role. Having closely reviewed the core requirements and strategic objectives of the position, I am confident that my background in delivering scalable solutions, coupled with hands-on expertise in Cloud Infrastructure and Cross-functional Collaboration, aligns directly with your team's immediate priorities.\n\nThroughout my career, I have focused on translating ambitious product goals into dependable, high-performance systems. At my current organization, I led pivotal initiatives that significantly increased efficiency while maintaining rigorous engineering standards. Integrating Cloud Infrastructure into production workflows allowed our team to ship faster and elevate user satisfaction.\n\nI would welcome the opportunity to discuss how my skill set and proactive approach can contribute directly to your team's upcoming milestones. Thank you for your time and consideration.\n\nSincerely,\nCandidate",
       "createdAt": "2026-09-24T12:22:32.765Z"
+    },
+    "scan_ee0d551a-4e55-413a-907e-d220972e73cc": {
+      "userId": "guest_6dbb476d-a307-4325-8e09-1f1ba156e3ea",
+      "jobTitle": "React Engineer. Requires React, TypeScript, Kubernetes.",
+      "companyName": "Hiring Organization",
+      "jobDescriptionText": "Job Title: React Engineer. Requires React, TypeScript, Kubernetes.",
+      "matchScore": 82,
+      "missingKeywords": [
+        "kubernetes"
+      ],
+      "strengths": [
+        "Resume explicitly evidences: REACT, TYPESCRIPT."
+      ],
+      "summary": "Strong alignment at 82%. The resume evidences react, typescript, covering 2 of 3 required keywords. Addressing the 1 missing keyword would strengthen this application.",
+      "starSuggestions": [
+        {
+          "original": "(No bullet found that evidences kubernetes.)",
+          "suggestion": "Add a bullet from your own experience that demonstrates kubernetes, written as: action + how you did it + measurable result. Substitute your real numbers - do not estimate.",
+          "keyword": "kubernetes"
+        }
+      ],
+      "tailoredResumeText": "ALEX CHEN\nFull Stack Software Engineer | San Francisco, CA | alex.chen@example.com\n\nPROFESSIONAL SUMMARY\nResults‑driven software engineer with 5 years of production experience delivering high‑performance web applications. Expert in React and TypeScript front‑end development, complemented by strong back‑end skills in Node.js, Express, and PostgreSQL. Proven ability to design, containerize, and scale microservices, and familiar with Kubernetes‑based orchestration for CI/CD pipelines. Passionate about building responsive, user‑centric interfaces for fast‑moving fintech and cloud platforms.\n\nCORE COMPETENCIES & TECHNICAL SKILLS\nReact • TypeScript • JavaScript • Node.js • Express • PostgreSQL • Docker • Kubernetes (exposure) • CI/CD • REST APIs • HTML5/CSS3 • Agile/Scrum • Git • Jest (unit testing)\n\nPROFESSIONAL EXPERIENCE\n\nSenior Software Engineer – FinTech Systems (2022 – Present)\n- Architected and deployed microservices handling 15,000 requests/minute using Node.js, TypeScript, and Redis, improving system throughput.\n- Designed and delivered responsive customer portals with React, Next.js, and Tailwind CSS, boosting user engagement.\n- Refactored PostgreSQL queries and added indexes, cutting average query response time by 42 %.\n- Integrated Docker containers into CI/CD workflow and introduced basic Kubernetes orchestration for staging environments.\n\nSoftware Engineer – CloudScale Apps (2019 – 2022)\n- Built RESTful APIs in Node.js/Express backed by PostgreSQL, supporting multiple SaaS products.\n- Implemented Docker‑based development environments, standardizing builds across the engineering team.\n- Collaborated in Agile sprints to deliver features on schedule, contributing to a 30 % reduction in release cycle time.\n\nEDUCATION & CERTIFICATIONS\n(Information not provided)\n\nPROJECTS & ACHIEVEMENTS\n- Delivered a React/TypeScript dashboard that processed real‑time financial data for 10,000+ concurrent users.\n",
+      "coverLetterText": "Dear Hiring Manager,\n\nI am excited to apply for the React Engineer position at [Company Name]. With five years of hands‑on experience building scalable, user‑focused web applications using React and TypeScript, I have a track record of turning complex business requirements into clean, performant interfaces. At FinTech Systems I led the development of a customer portal that served thousands of users daily, leveraging React, Next.js, and Tailwind CSS to achieve a seamless experience.\n\nMy back‑end expertise in Node.js, Express, and PostgreSQL, combined with extensive work containerizing services with Docker, positions me to contribute effectively to your full‑stack initiatives. I have also worked with Kubernetes in staging pipelines to orchestrate container deployments, ensuring reliable CI/CD processes—experience that aligns directly with the infrastructure focus of your team.\n\nI am eager to bring my passion for modern front‑end engineering and my collaborative, Agile mindset to [Company Name]. Thank you for considering my application; I look forward to discussing how my skills can help accelerate your product roadmap.\n\nSincerely,\nAlex Chen",
+      "id": "scan_ee0d551a-4e55-413a-907e-d220972e73cc",
+      "createdAt": "2026-10-01T12:49:18.816Z",
+      "tailoredSynthetic": false
     }
   },
   "applications": {},
@@ -101,17 +148,6 @@
       "modelId": "llama-3.3-70b-versatile",
       "apiKeyEnv": "GROQ_API_KEY",
       "contextWindow": "128k",
-      "latencyTier": "sub-second",
-      "enabled": true,
-      "createdAt": "2026-09-01T00:00:00.000Z"
-    },
-    "llm_gemini_25_flash": {
-      "id": "llm_gemini_25_flash",
-      "name": "Google Gemini 2.5 Flash",
-      "provider": "gemini",
-      "modelId": "gemini-2.5-flash",
-      "apiKeyEnv": "GEMINI_API_KEY",
-      "contextWindow": "1M",
       "latencyTier": "sub-second",
       "enabled": true,
       "createdAt": "2026-09-01T00:00:00.000Z"
@@ -170,6 +206,17 @@
       "enabled": true,
       "id": "llm_a6f86cbe",
       "createdAt": "2026-10-01T03:41:24.841Z"
+    },
+    "llm_gemini_25_flash": {
+      "id": "llm_gemini_25_flash",
+      "name": "Google Gemini 2.5 Flash",
+      "provider": "gemini",
+      "modelId": "gemini-2.5-flash",
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "contextWindow": "128k",
+      "latencyTier": "standard",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
     }
   },
   "taskBindings": {
@@ -246,6 +293,70 @@
       "targetUserId": "user_demo_free",
       "id": "sec_1c032315",
       "timestamp": "2026-10-01T03:41:00.504Z"
+    },
+    {
+      "event": "PRO_TOGGLED",
+      "severity": "info",
+      "details": "Plan upgraded to PRO for upgradetest@example.com (sandbox activation, no payment captured).",
+      "targetUserId": "usr_upgrade_test",
+      "id": "sec_5d29b86f",
+      "timestamp": "2026-10-01T05:02:01.162Z"
+    },
+    {
+      "event": "PRO_TOGGLED",
+      "severity": "info",
+      "details": "Plan cancelled, downgraded to FREE for upgradetest@example.com.",
+      "targetUserId": "usr_upgrade_test",
+      "id": "sec_65927409",
+      "timestamp": "2026-10-01T05:02:01.241Z"
+    },
+    {
+      "event": "PRO_TOGGLED",
+      "severity": "info",
+      "details": "Plan upgraded to PRO for throttle@example.com (sandbox activation, no payment captured).",
+      "targetUserId": "usr_throttle_test",
+      "id": "sec_b3aad321",
+      "timestamp": "2026-10-01T05:02:20.228Z"
+    },
+    {
+      "event": "PRO_TOGGLED",
+      "severity": "info",
+      "details": "Plan upgraded to PRO for fp@example.com (sandbox activation, no payment captured).",
+      "targetUserId": "usr_final_plan",
+      "id": "sec_28bc0a25",
+      "timestamp": "2026-10-01T05:57:15.953Z"
+    },
+    {
+      "event": "PRO_TOGGLED",
+      "severity": "info",
+      "details": "Plan cancelled, downgraded to FREE for fp@example.com.",
+      "targetUserId": "usr_final_plan",
+      "id": "sec_da3f2299",
+      "timestamp": "2026-10-01T05:57:16.029Z"
+    },
+    {
+      "event": "PRO_TOGGLED",
+      "severity": "info",
+      "details": "Plan for user demo-user@resumesetu.ai toggled to PRO.",
+      "targetUserId": "user_demo_free",
+      "id": "sec_a244b38e",
+      "timestamp": "2026-10-01T06:01:10.117Z"
+    },
+    {
+      "event": "PRO_TOGGLED",
+      "severity": "info",
+      "details": "Plan for user demo-user@resumesetu.ai updated to PRO.",
+      "targetUserId": "user_demo_free",
+      "id": "sec_c6a1c40c",
+      "timestamp": "2026-10-01T06:01:10.129Z"
+    },
+    {
+      "event": "CREDITS_UPDATED",
+      "severity": "info",
+      "details": "Added 2 scan credits to user pro-member@resumesetu.ai.",
+      "targetUserId": "user_demo_pro",
+      "id": "sec_1daed5f1",
+      "timestamp": "2026-10-01T06:01:10.140Z"
     }
   ]
 }

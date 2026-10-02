@@ -15,24 +15,45 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
   const [scanState, setScanState] = useState<'scanning' | 'matched'>('scanning');
 
   useEffect(() => {
-    // Subtle realistic scan pulse
-    const timer = setInterval(() => {
+    // Reduced motion: show the final state, no looping animation at all.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setDisplayScore(94);
+      setScanState('matched');
+      return;
+    }
+
+    // Subtle realistic scan pulse. The inner count-up timer is tracked so it
+    // can be cleared both before the next pulse and on unmount — previously
+    // it leaked (kept calling setState after the card unmounted) and stacked
+    // a new timer on every 8s tick.
+    let countUp: number | undefined;
+    const runPulse = () => {
+      if (countUp !== undefined) clearInterval(countUp);
       setScanState('scanning');
       let score = 58;
-      const interval = setInterval(() => {
+      countUp = window.setInterval(() => {
         score += 4;
         if (score >= 94) {
           score = 94;
           setDisplayScore(94);
           setScanState('matched');
-          clearInterval(interval);
+          if (countUp !== undefined) {
+            clearInterval(countUp);
+            countUp = undefined;
+          }
         } else {
           setDisplayScore(score);
         }
       }, 50);
-    }, 8000);
+    };
 
-    return () => clearInterval(timer);
+    runPulse();
+    const timer = window.setInterval(runPulse, 8000);
+
+    return () => {
+      clearInterval(timer);
+      if (countUp !== undefined) clearInterval(countUp);
+    };
   }, []);
 
   return (

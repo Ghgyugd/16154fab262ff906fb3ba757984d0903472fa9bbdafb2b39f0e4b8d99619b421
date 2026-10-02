@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 /**
  * Rich Luminous Gradient Mesh Canvas with High-Tech Architectural Grid:
@@ -7,12 +7,21 @@ import React, { useEffect, useState, useRef } from 'react';
  * - Crisp, unmistakable architectural coordinate grid with precision intersection accents
  * - Calibrated for high-contrast glassmorphism so cards glow with luminous color
  * - Fluid hardware-accelerated interactive cursor spotlight
+ *
+ * Performance notes: the spotlight is a fixed-size layer moved purely via
+ * `transform: translate3d()` (GPU compositing, no repaint of the gradient) and
+ * is updated through a DOM ref — zero React re-renders. The animation loop only
+ * runs while the pointer is actually in motion and parks itself once settled.
+ * The previous implementation called setState on every animation frame
+ * forever, re-rendering this component 60×/second and repainting the blurred
+ * layers, which made the whole page feel laggy.
  */
 export const ATSInteractiveBackground: React.FC = () => {
-  const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: -1000, y: -1000 });
   const [isPointerDevice, setIsPointerDevice] = useState(false);
-  const targetPos = useRef<{ x: number; y: number }>({ x: -1000, y: -1000 });
+  const spotRef = useRef<HTMLDivElement | null>(null);
   const rafId = useRef<number | null>(null);
+  const targetPos = useRef<{ x: number; y: number }>({ x: -2000, y: -2000 });
+  const currentPos = useRef<{ x: number; y: number }>({ x: -2000, y: -2000 });
 
   useEffect(() => {
     const hasPointer = window.matchMedia('(pointer: fine)').matches;
@@ -21,26 +30,41 @@ export const ATSInteractiveBackground: React.FC = () => {
 
     setIsPointerDevice(true);
 
-    const handleMouseMove = (e: MouseEvent) => {
-      targetPos.current = { x: e.clientX, y: e.clientY };
+    // Half the spotlight box — keeps the gradient centred on the cursor.
+    const HALF = 310;
+
+    const paint = () => {
+      rafId.current = null;
+      const target = targetPos.current;
+      const current = currentPos.current;
+      current.x += (target.x - current.x) * 0.18;
+      current.y += (target.y - current.y) * 0.18;
+
+      const spot = spotRef.current;
+      if (spot) {
+        spot.style.transform = `translate3d(${(current.x - HALF).toFixed(1)}px, ${(current.y - HALF).toFixed(1)}px, 0)`;
+      }
+
+      const dx = target.x - current.x;
+      const dy = target.y - current.y;
+      // Stop the loop once the spotlight has converged on the pointer —
+      // idle pages burn no CPU at all until the pointer moves again.
+      if (dx * dx + dy * dy > 1) {
+        rafId.current = requestAnimationFrame(paint);
+      }
     };
 
-    let currentX = -1000;
-    let currentY = -1000;
-
-    const animate = () => {
-      currentX += (targetPos.current.x - currentX) * 0.08;
-      currentY += (targetPos.current.y - currentY) * 0.08;
-      setMousePos({ x: Math.round(currentX), y: Math.round(currentY) });
-      rafId.current = requestAnimationFrame(animate);
+    const handleMouseMove = (e: MouseEvent) => {
+      targetPos.current = { x: e.clientX, y: e.clientY };
+      if (rafId.current === null) rafId.current = requestAnimationFrame(paint);
     };
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    rafId.current = requestAnimationFrame(animate);
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
-      if (rafId.current) cancelAnimationFrame(rafId.current);
+      if (rafId.current !== null) cancelAnimationFrame(rafId.current);
+      rafId.current = null;
     };
   }, []);
 
@@ -129,12 +153,16 @@ export const ATSInteractiveBackground: React.FC = () => {
         }}
       />
 
-      {/* 10. Interactive Cursor Spotlight (Intensifies local grid & colors smoothly) */}
-      {isPointerDevice && mousePos.x > -500 && (
+      {/* 10. Interactive Cursor Spotlight — fixed-size layer moved by transform
+          only (GPU-composited). Positioned off-screen until first movement. */}
+      {isPointerDevice && (
         <div
-          className="absolute inset-0 transition-opacity duration-300"
+          ref={spotRef}
+          className="absolute left-0 top-0 w-[620px] h-[620px] rounded-full will-change-transform"
           style={{
-            background: `radial-gradient(620px circle at ${mousePos.x}px ${mousePos.y}px, rgba(29, 78, 216, 0.11), rgba(6, 182, 212, 0.05) 45%, transparent 75%)`,
+            transform: 'translate3d(-2000px, -2000px, 0)',
+            background:
+              'radial-gradient(circle, rgba(29, 78, 216, 0.11) 0%, rgba(6, 182, 212, 0.05) 45%, transparent 75%)',
           }}
         />
       )}

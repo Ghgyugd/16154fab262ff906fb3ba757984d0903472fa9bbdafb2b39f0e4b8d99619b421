@@ -31,6 +31,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
+import { hasAdminPrivileges, isOwnerEmail, FREE_SCAN_LIMIT, PRO_PRICE_INR } from '../config.js';
 
 interface AdminUser {
   id: string;
@@ -130,7 +131,7 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => {
-  const { user, loginWithGoogleFast } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<
     'analytics' | 'users' | 'llms' | 'security' | 'monitoring' | 'settings'
   >('analytics');
@@ -150,6 +151,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPlan, setFilterPlan] = useState<'all' | 'pro' | 'free' | 'admin' | 'banned'>('all');
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [loadErrors, setLoadErrors] = useState<string[]>([]);
+  // Per-endpoint failure reason, so a missing panel can say why it is empty
+  // instead of showing invented values.
+  const [endpointErrors, setEndpointErrors] = useState<Record<string, string>>({});
 
   // Edit User Modal
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
@@ -187,19 +192,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
     apiKeyEnv: 'API_KEY',
   });
 
-  const isOwnerOrAdmin =
-    user?.isAdmin ||
-    user?.role === 'OWNER' ||
-    user?.email?.toLowerCase().trim() === 'anjana2771patel@gmail.com';
+  // Privileges are decided by the server from the signed session cookie, never
+  // from client-supplied headers or an email string comparison.
+  const isOwnerOrAdmin = hasAdminPrivileges(user);
 
   const showToast = (msg: string) => {
     setFeedbackMessage(msg);
     setTimeout(() => setFeedbackMessage(null), 3500);
   };
 
+  // Authorization travels in the httpOnly session cookie the browser already
+  // sends. Sending identity headers (previously defaulting to the owner) made
+  // the admin API trivially spoofable.
   const getAuthHeaders = (): Record<string, string> => ({
-    'x-user-email': user?.email || 'anjana2771patel@gmail.com',
-    'x-user-id': user?.id || 'usr_owner_anjana',
     'Content-Type': 'application/json',
   });
 
@@ -208,54 +213,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
     setLoading(true);
     try {
       const headers = getAuthHeaders();
-      const [
-        statsRes,
-        usersRes,
-        llmsRes,
-        bindingsRes,
-        settingsRes,
-        healthRes,
-        logsRes,
-      ] = await Promise.all([
-        fetch('/api/admin/stats', { headers }),
-        fetch('/api/admin/users', { headers }),
-        fetch('/api/admin/llms', { headers }),
-        fetch('/api/admin/llm-bindings', { headers }),
-        fetch('/api/admin/settings', { headers }),
-        fetch('/api/admin/system-health', { headers }),
-        fetch('/api/admin/security-logs', { headers }),
-      ]);
+      // Settled, not all-or-nothing: one failing endpoint must not leave the whole
+      // panel silently half-populated with no user-visible explanation.
+      const endpoints = [
+        { key: 'stats', url: '/api/admin/stats', pick: (d: any) => d.stats, apply: setStats },
+        { key: 'users', url: '/api/admin/users', pick: (d: any) => d.users || [], apply: setUsers },
+        { key: 'llms', url: '/api/admin/llms', pick: (d: any) => d.llms || [], apply: setLlms },
+        { key: 'bindings', url: '/api/admin/llm-bindings', pick: (d: any) => d.bindings || {}, apply: setBindings },
+        { key: 'settings', url: '/api/admin/settings', pick: (d: any) => d.settings, apply: setSettings },
+        { key: 'health', url: '/api/admin/system-health', pick: (d: any) => d.health, apply: setHealth },
+        { key: 'logs', url: '/api/admin/security-logs', pick: (d: any) => d.logs || [], apply: setSecurityLogs },
+      ] as const;
 
-      if (statsRes.ok) {
-        const d = await statsRes.json();
-        setStats(d.stats);
-      }
-      if (usersRes.ok) {
-        const d = await usersRes.json();
-        setUsers(d.users || []);
-      }
-      if (llmsRes.ok) {
-        const d = await llmsRes.json();
-        setLlms(d.llms || []);
-      }
-      if (bindingsRes.ok) {
-        const d = await bindingsRes.json();
-        setBindings(d.bindings || {});
-      }
-      if (settingsRes.ok) {
-        const d = await settingsRes.json();
-        setSettings(d.settings);
-      }
-      if (healthRes.ok) {
-        const d = await healthRes.json();
-        setHealth(d.health);
-      }
-      if (logsRes.ok) {
-        const d = await logsRes.json();
-        setSecurityLogs(d.logs || []);
-      }
+      const results = await Promise.allSettled(
+        endpoints.map(async (ep) => {
+          const res = await fetch(ep.url, { headers });
+          if (!res.ok) throw new Error(`${ep.key}: HTTP ${res.status}`);
+          return (await res.json()) as any;
+        })
+      );
+
+      const failures: string[] = [];
+      const reasons: Record<string, string> = {};
+      results.forEach((result, i) => {
+        const ep = endpoints[i];
+        if (result.status === 'fulfilled') {
+          ep.apply(result.value ? ep.pick(result.value) : undefined as any);
+        } else {
+          failures.push(ep.key);
+          reasons[ep.key] =
+            result.reason instanceof Error ? result.reason.message : 'Request failed';
+        }
+      });
+
+      setLoadErrors(failures);
+      setEndpointErrors(reasons);
     } catch (err) {
       console.error('Failed to load admin data:', err);
+      setLoadErrors(['admin data']);
     } finally {
       setLoading(false);
     }
@@ -276,9 +271,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
         if (res.ok) {
           const d = await res.json();
           setHealth(d.health);
+          setEndpointErrors((prev) => {
+            if (!prev.health) return prev;
+            const { health: _dropped, ...rest } = prev;
+            return rest;
+          });
+        } else {
+          // Drop the reading rather than leaving stale numbers on screen that
+          // look like a live, healthy system.
+          setHealth(null);
+          setEndpointErrors((prev) => ({
+            ...prev,
+            health: `HTTP ${res.status}`,
+          }));
         }
-      } catch {
-        // silent
+      } catch (err) {
+        setHealth(null);
+        setEndpointErrors((prev) => ({
+          ...prev,
+          health: err instanceof Error ? err.message : 'Request failed',
+        }));
       }
     }, 15000);
     return () => clearInterval(interval);
@@ -555,10 +567,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
   // SYSTEM SETTINGS ACTIONS
   // ==========================================
 
-  const handleToggleSetting = async (key: keyof SystemSettings, currentVal: any) => {
-    if (!settings) return;
-    setActionLoading(`set-${key}`);
-    const updated = { [key]: !currentVal };
+  // `!currentVal` coerced every numeric setting to `false`, so the limit/price
+    // inputs POSTed a boolean and silently never persisted. Invert booleans
+    // only, and pass anything else through unchanged.
+    const handleToggleSetting = async (key: keyof SystemSettings, currentVal: unknown) => {
+      if (!settings) return;
+      setActionLoading(`set-${key}`);
+      const updated: Record<string, unknown> = {
+        [key]: typeof currentVal === 'boolean' ? !currentVal : currentVal,
+      };
     try {
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
@@ -593,19 +610,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               System Owner & Admin Verification Required
             </h1>
             <p className="text-xs sm:text-sm text-[#334E68] max-w-md mx-auto leading-relaxed">
-              This route is protected by administrative role-based access rules. Only verified administrators
-              and the System Owner (<span className="font-mono font-bold text-[#1D4ED8]">anjana2771patel@gmail.com</span>) are granted access.
+              This route is protected by administrative role-based access rules. Only accounts with
+              verified admin privileges are granted access.
             </p>
           </div>
 
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <button
-              onClick={() => loginWithGoogleFast('anjana2771patel@gmail.com', 'Anjana Patel (System Owner)')}
-              className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r from-[#0B2545] via-[#1D4ED8] to-[#2563EB] shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Sign in as System Owner</span>
-            </button>
             <button
               onClick={onBackToWorkspace}
               className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider text-[#334E68] bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer"
@@ -636,6 +646,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 min-w-0">
+      {loadErrors.length > 0 && (
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900"
+        >
+          <strong className="font-bold">Some panels could not be loaded:</strong>{' '}
+          {loadErrors.join(', ')}. The server may have restarted, or your session may have
+          expired. Use refresh to retry.
+        </div>
+      )}
+
       {/* Top Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -798,10 +819,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                 <CreditCard className="w-4 h-4 text-[#1D4ED8]" />
               </div>
               <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
-                ₹{((stats?.activeProMembers ?? 1) * (settings?.proPriceInr || 249)).toLocaleString()}
+                {stats
+                  ? `₹${((stats.activeProMembers || 0) * (settings?.proPriceInr ?? PRO_PRICE_INR)).toLocaleString()}`
+                  : 'Not available'}
               </div>
               <div className="text-[11px] text-[#627D98]">
-                ₹{settings?.proPriceInr || 249}/mo per Pro subscriber
+                ₹{settings?.proPriceInr ?? PRO_PRICE_INR}/mo per Pro subscriber
               </div>
             </div>
 
@@ -812,10 +835,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                 <Clock className="w-4 h-4 text-[#1D4ED8]" />
               </div>
               <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
-                {stats?.avgSessionDurationMinutes ?? 14} min
+                {stats ? `${stats.avgSessionDurationMinutes} min` : 'Not available'}
               </div>
               <div className="text-[11px] text-[#334E68]">
-                {Math.round((stats?.totalTimeSpentSeconds ?? 3600) / 60)} min total engagement
+                {stats
+                  ? `${Math.round(stats.totalTimeSpentSeconds / 60)} min total engagement`
+                  : 'Stats endpoint did not respond'}
               </div>
             </div>
 
@@ -826,10 +851,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                 <Zap className="w-4 h-4 text-[#1D4ED8]" />
               </div>
               <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
-                {stats?.avgAtsScore ?? 82}%
+                {stats ? `${stats.avgAtsScore}%` : 'Not available'}
               </div>
               <div className="text-[11px] text-[#334E68]">
-                Across {stats?.totalScansPerformed ?? 0} candidate scans
+                {stats
+                  ? `Across ${stats.totalScansPerformed} candidate scans`
+                  : 'Stats endpoint did not respond'}
               </div>
             </div>
           </div>
@@ -892,26 +919,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   AI Inference & Costs
                 </span>
                 <span className="text-[11px] font-mono text-[#1D4ED8]">
-                  ${stats?.llmMetrics?.estimatedCostUsd ?? '0.0012'}
+                  {stats ? `$${stats.llmMetrics.estimatedCostUsd}` : 'Not available'}
                 </span>
               </div>
               <div className="space-y-2 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-[#627D98]">Total Tokens</span>
                   <span className="font-mono font-bold text-[#0B2545]">
-                    {((stats?.llmMetrics?.totalTokens ?? 3200) / 1000).toFixed(1)}k
+                    {stats ? `${(stats.llmMetrics.totalTokens / 1000).toFixed(1)}k` : 'Not available'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[#627D98]">Groq Tokens (Llama 70B)</span>
                   <span className="font-mono text-[#334E68]">
-                    {((stats?.llmMetrics?.groqTokens ?? 0) / 1000).toFixed(1)}k
+                    {stats ? `${(stats.llmMetrics.groqTokens / 1000).toFixed(1)}k` : 'Not available'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[#627D98]">Gemini Tokens (GenAI)</span>
                   <span className="font-mono text-[#334E68]">
-                    {((stats?.llmMetrics?.geminiTokens ?? 0) / 1000).toFixed(1)}k
+                    {stats ? `${(stats.llmMetrics.geminiTokens / 1000).toFixed(1)}k` : 'Not available'}
                   </span>
                 </div>
               </div>
@@ -989,7 +1016,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   </tr>
                 ) : (
                   filteredUsers.map((u) => {
-                    const isOwner = u.email.toLowerCase().trim() === 'anjana2771patel@gmail.com';
+                    const isOwner = isOwnerEmail(u.email);
                     return (
                       <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-3.5 px-4">
@@ -1041,11 +1068,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                         </td>
 
                         <td className="py-3.5 px-3 font-mono font-semibold text-[#0B2545]">
-                          {u.currentPlan === 'PRO' ? 'Unlimited' : `${u.monthlyScansUsed}/3`}
+                          {u.currentPlan === 'PRO'
+                            ? 'Unlimited'
+                            : `${u.monthlyScansUsed}/${settings?.freeTierMonthlyLimit || FREE_SCAN_LIMIT}`}
                         </td>
 
                         <td className="py-3.5 px-3 text-[#334E68] text-[11px]">
-                          {Math.round((u.totalTimeSpentSeconds || 300) / 60)} min
+                          {u.totalTimeSpentSeconds
+                            ? `${Math.round(u.totalTimeSpentSeconds / 60)} min`
+                            : 'No data'}
                         </td>
 
                         <td className="py-3.5 px-4 text-right">
@@ -1410,77 +1441,96 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
       {/* ========================================================================= */}
       {activeTab === 'monitoring' && (
         <div className="space-y-6 animate-in fade-in">
-          {/* Uptime & Process Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
-                Server Uptime
-              </span>
-              <div className="text-xl sm:text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
-                {health?.uptime || 'Active'}
-              </div>
-              <div className="text-[11px] text-[#334E68]">Node {health?.nodeVersion || 'v20'}</div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
-                Memory RSS
-              </span>
-              <div className="text-xl sm:text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
-                {health?.memoryRssMb || 94} MB
-              </div>
-              <div className="text-[11px] text-[#334E68]">
-                Heap: {health?.heapUsedMb || 45}MB / {health?.heapTotalMb || 68}MB
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
-                Process Host
-              </span>
-              <div className="text-xl sm:text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
-                {health?.platform || 'linux-x64'}
-              </div>
-              <div className="text-[11px] text-[#334E68]">PID {health?.pid || 1}</div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
-                Error Rate
-              </span>
-              <div className="text-xl sm:text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
-                0.0%
-              </div>
-              <div className="text-[11px] text-[#1D4ED8] font-semibold">Zero Unhandled Rejections</div>
-            </div>
-          </div>
-
-          {/* Subsystems Matrix */}
-          <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-[#0B2545]">
-              Subsystem Health Matrix
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {(health?.services || [
-                { name: 'Database / Vault Storage', status: 'ONLINE', latencyMs: 1 },
-                { name: 'Deterministic ATS Engine', status: 'ONLINE', latencyMs: 12 },
-                { name: 'Task Worker Queue', status: 'ONLINE', latencyMs: 4 },
-                { name: 'Groq Inference Gateway', status: 'ONLINE', latencyMs: 340 },
-                { name: 'Google Gemini GenAI SDK', status: 'ONLINE', latencyMs: 820 },
-              ]).map((svc) => (
-                <div key={svc.name} className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-[#0B2545] text-xs">{svc.name}</div>
-                    <div className="text-[11px] text-[#627D98] font-mono">{svc.latencyMs}ms response latency</div>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#1D4ED8] border border-blue-200">
-                    {svc.status}
+          {health ? (
+            <>
+              {/* Uptime & Process Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
+                    Server Uptime
                   </span>
+                  <div className="text-xl sm:text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
+                    {health.uptime}
+                  </div>
+                  <div className="text-[11px] text-[#334E68]">Node {health.nodeVersion}</div>
                 </div>
-              ))}
+
+                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
+                    Memory RSS
+                  </span>
+                  <div className="text-xl sm:text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
+                    {health.memoryRssMb} MB
+                  </div>
+                  <div className="text-[11px] text-[#334E68]">
+                    Heap: {health.heapUsedMb}MB / {health.heapTotalMb}MB
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
+                    Process Host
+                  </span>
+                  <div className="text-xl sm:text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
+                    {health.platform}
+                  </div>
+                  <div className="text-[11px] text-[#334E68]">PID {health.pid}</div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
+                    Error Rate
+                  </span>
+                  <div className="text-xl sm:text-2xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
+                    Not measured
+                  </div>
+                  <div className="text-[11px] text-[#627D98]">
+                    This server does not collect error-rate telemetry
+                  </div>
+                </div>
+              </div>
+
+              {/* Subsystems Matrix */}
+              <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-[#0B2545]">
+                  Subsystem Health Matrix
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {(health.services || []).map((svc) => (
+                    <div key={svc.name} className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-[#0B2545] text-xs">{svc.name}</div>
+                        <div className="text-[11px] text-[#627D98] font-mono">{svc.latencyMs}ms response latency</div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#1D4ED8] border border-blue-200">
+                        {svc.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="p-8 sm:p-12 text-center rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200/70">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+              </div>
+              <h3 className="text-lg font-bold text-[#0B2545] font-['Space_Grotesk']">
+                System health unavailable
+              </h3>
+              <p className="text-xs sm:text-sm text-[#334E68] max-w-lg mx-auto leading-relaxed">
+                {loading
+                  ? 'Waiting for the first health reading…'
+                  : endpointErrors.health
+                  ? `The health endpoint did not return a reading: ${endpointErrors.health}.`
+                  : 'The health endpoint returned no reading. Retrying automatically every 15 seconds.'}
+              </p>
+              <p className="text-xs text-[#627D98]">
+                Nothing is displayed here because no live measurement was received.
+              </p>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1506,14 +1556,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  value={settings?.freeTierMonthlyLimit || 3}
+                  value={settings?.freeTierMonthlyLimit || FREE_SCAN_LIMIT}
                   onChange={(e) =>
                     setSettings((prev) => prev ? { ...prev, freeTierMonthlyLimit: Number(e.target.value) } : prev)
                   }
                   className="w-24 p-2 rounded-lg border border-slate-300 bg-white font-mono text-xs font-bold"
                 />
                 <button
-                  onClick={() => handleToggleSetting('freeTierMonthlyLimit' as any, (settings?.freeTierMonthlyLimit || 3) - 1)}
+                  onClick={() => handleToggleSetting('freeTierMonthlyLimit' as any, (settings?.freeTierMonthlyLimit || FREE_SCAN_LIMIT) - 1)}
                   className="px-3 py-1.5 rounded-lg bg-[#0B2545] text-white text-xs font-bold cursor-pointer"
                 >
                   Save Limit
@@ -1531,14 +1581,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  value={settings?.proPriceInr || 249}
+                  value={settings?.proPriceInr || PRO_PRICE_INR}
                   onChange={(e) =>
                     setSettings((prev) => prev ? { ...prev, proPriceInr: Number(e.target.value) } : prev)
                   }
                   className="w-24 p-2 rounded-lg border border-slate-300 bg-white font-mono text-xs font-bold"
                 />
                 <button
-                  onClick={() => handleToggleSetting('proPriceInr' as any, (settings?.proPriceInr || 249) - 1)}
+                  onClick={() => handleToggleSetting('proPriceInr' as any, (settings?.proPriceInr || PRO_PRICE_INR) - 1)}
                   className="px-3 py-1.5 rounded-lg bg-[#0B2545] text-white text-xs font-bold cursor-pointer"
                 >
                   Save Price

@@ -13,22 +13,31 @@ export const ScoreResultSchema = z.object({
   job_title: z.string().default('Target Position'),
   company: z.string().default('Target Company'),
   match_score: z.number().min(0).max(100),
-  missing_keywords: z.array(z.string()),
-  strengths: z.array(z.string()),
+  missing_keywords: z.array(z.string()).max(50),
+  strengths: z.array(z.string()).max(20),
   summary: z.string(),
   star_suggestions: z.array(StarSuggestionSchema).optional().default([]),
+  /**
+   * True when this result was produced by the deterministic local fallback
+   * rather than a real model. Consumers must not present it as AI output.
+   */
+  synthetic: z.boolean().optional().default(false),
 });
 
 export const TailorResultSchema = z.object({
-  tailored_resume_text: z.string(),
-  cover_letter_text: z.string(),
-  key_changes_made: z.array(z.string()),
+  tailored_resume_text: z.string().max(60_000),
+  cover_letter_text: z.string().max(20_000),
+  key_changes_made: z.array(z.string()).max(30),
   improved_match_score: z.number().min(0).max(100),
+  /** True when no AI provider responded and this is a local scaffold, not a rewrite. */
+  synthetic: z.boolean().optional().default(false),
+  /** Human-readable explanation shown to the user when synthetic is true. */
+  notice: z.string().optional(),
 });
 
 export const ParseCandidateSchema = z.object({
   name: z.string().default('Candidate'),
-  email: z.string().default('candidate@example.com'),
+  email: z.string().email().default('candidate@example.com'),
   skills: z.array(z.string()).default([]),
   experience_years: z.number().default(1),
 });

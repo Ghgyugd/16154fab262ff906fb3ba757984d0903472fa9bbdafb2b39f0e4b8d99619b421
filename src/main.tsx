@@ -1,45 +1,38 @@
-// Suppress noisy Vite dev server WebSocket disconnect errors & development mode notices in AI Studio iFrame
-if (typeof window !== 'undefined') {
-  window.addEventListener('unhandledrejection', (event) => {
-    const reasonStr = event.reason ? String(event.reason?.message || event.reason) : '';
-    if (
-      reasonStr.includes('WebSocket') ||
-      reasonStr.includes('failed to connect') ||
-      reasonStr.includes('closed without opened')
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  });
-
-  window.addEventListener('error', (event) => {
-    const msg = event.message || '';
-    if (msg.includes('WebSocket') || msg.includes('[vite]') || msg.includes('websocket')) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  });
-
-  // Filter development-only console notices
-  const originalWarn = console.warn;
-  console.warn = (...args: any[]) => {
-    const msg = args[0] ? String(args[0]) : '';
-    if (
-      msg.includes('Clerk: Clerk has been loaded with development keys') ||
-      msg.includes('WebSocket')
-    ) {
-      return;
-    }
-    originalWarn.apply(console, args);
-  };
-}
-
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(
+/**
+ * Dev-only: HMR websocket noise inside sandboxed iframes.
+ *
+ * Scoped to import.meta.env.DEV so production never swallows errors. Only
+ * HMR transport messages are filtered - every other error, including genuine
+ * runtime failures, is left to propagate to error reporting.
+ */
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  const isHmrNoise = (text: string) =>
+    text.includes('[vite]') ||
+    text.includes('WebSocket') ||
+    text.includes('failed to connect') ||
+    text.includes('closed without opened');
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason as { message?: string } | undefined;
+    const text = reason?.message ?? String(event.reason ?? '');
+    if (isHmrNoise(text)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+}
+
+const container = document.getElementById('root');
+if (!container) {
+  throw new Error('Root element #root not found in index.html');
+}
+
+createRoot(container).render(
   <StrictMode>
     <App />
   </StrictMode>

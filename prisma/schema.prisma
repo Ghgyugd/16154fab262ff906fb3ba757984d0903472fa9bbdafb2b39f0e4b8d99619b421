@@ -1,6 +1,3 @@
-// Prisma Schema for ResumeSetu PostgreSQL Database
-// Production-grade MicroSaaS Schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,6 +10,16 @@ datasource db {
 enum Plan {
   FREE
   PRO
+
+  @@map("plan")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  USER
+
+  @@map("user_role")
 }
 
 enum ApplicationStatus {
@@ -20,72 +27,147 @@ enum ApplicationStatus {
   INTERVIEW
   OFFER
   REJECTED
+
+  @@map("application_status")
 }
 
 model User {
-  id               String               @id @default(cuid())
-  email            String               @unique
-  authProviderId   String?              @unique
-  currentPlan      Plan                 @default(FREE)
-  monthlyScansUsed Int                  @default(0)
-  creditResetDate  DateTime             @default(now())
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  id                    String   @id
+  email                 String   @unique
+  displayName           String?  @map("display_name")
+  photoURL              String?  @map("photo_url")
+  authProviderId        String?  @unique @map("auth_provider_id")
+  currentPlan           Plan     @default(FREE) @map("current_plan")
+  monthlyScansUsed      Int      @default(0) @map("monthly_scans_used")
+  creditResetDate       DateTime @map("credit_reset_date") @db.Timestamptz
+  isAdmin               Boolean  @default(false) @map("is_admin")
+  role                  Role     @default(USER)
+  isBanned              Boolean  @default(false) @map("is_banned")
+  banReason             String?  @map("ban_reason")
+  totalTimeSpentSeconds BigInt   @default(0) @map("total_time_spent_seconds")
+  lastActiveAt          DateTime? @map("last_active_at") @db.Timestamptz
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  resumes          Resume[]
-  jobScans         JobScan[]
-  applications     ApplicationTracker[]
+  resumes      Resume[]
+  jobScans     JobScan[]
+  applications ApplicationTracker[]
+  securityLogs SecurityLog[]
 
-  @@index([email])
-  @@index([authProviderId])
+  @@index([role, currentPlan])
+  @@index([lastActiveAt])
+  @@map("users")
 }
 
 model Resume {
-  id                   String   @id @default(cuid())
-  userId               String
-  originalFileName     String
-  fileUrl              String
-  parsedText           String   @db.Text
-  starFormattedBullets Json?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                   String   @id
+  userId               String   @map("user_id")
+  originalFileName     String   @map("original_file_name")
+  fileUrl              String   @map("file_url")
+  storageKey           String?  @map("storage_key")
+  storageProvider      String   @default("local_encrypted") @map("storage_provider")
+  downloadUrl          String?  @map("download_url")
+  mimeType             String?  @map("mime_type")
+  parsedText           String   @map("parsed_text") @db.Text
+  starFormattedBullets Json?    @map("star_formatted_bullets")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([userId, createdAt])
+  @@map("resumes")
 }
 
 model JobScan {
-  id                 String   @id @default(cuid())
-  userId             String
-  jobTitle           String?
-  companyName        String?
-  jobDescriptionText String   @db.Text
-  matchScore         Float
-  missingKeywords    String[]
-  starSuggestions    Json?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                 String   @id
+  userId             String   @map("user_id")
+  jobTitle           String?  @map("job_title")
+  companyName        String?  @map("company_name")
+  jobDescriptionText String   @map("job_description_text") @db.Text
+  matchScore         Float    @map("match_score")
+  missingKeywords    Json     @default("[]") @map("missing_keywords")
+  strengths          Json?
+  summary            String?
+  starSuggestions    Json?    @map("star_suggestions")
+  tailoredResumeText String?  @map("tailored_resume_text") @db.Text
+  coverLetterText    String?  @map("cover_letter_text") @db.Text
+  tailoredSynthetic  Boolean  @default(false) @map("tailored_synthetic")
+  tailoredNotice     String?  @map("tailored_notice")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("job_scans")
 }
 
 model ApplicationTracker {
-  id          String            @id @default(cuid())
-  userId      String
-  company     String
-  role        String
-  matchScore  Float
-  status      ApplicationStatus @default(APPLIED)
-  appliedDate DateTime          @default(now())
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id         String            @id
+  userId     String            @map("user_id")
+  company    String
+  role       String
+  matchScore Float             @default(0) @map("match_score")
+  status     ApplicationStatus @default(APPLIED)
+  appliedDate DateTime         @map("applied_date") @db.Date
+  notes      String?
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz
 
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([userId, appliedDate])
   @@index([status])
+  @@map("applications")
+}
+
+model LLMConfig {
+  id            String   @id
+  name          String
+  provider      String
+  modelId       String   @map("model_id")
+  apiKeyEnv     String?  @map("api_key_env")
+  contextWindow String   @map("context_window")
+  latencyTier   String   @map("latency_tier")
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("llm_configs")
+}
+
+model TaskBinding {
+  task            String @id
+  taskLabel       String @map("task_label")
+  primaryModelId  String @map("primary_model_id")
+  fallbackModelId String @map("fallback_model_id")
+
+  @@map("task_bindings")
+}
+
+model SystemSettings {
+  id                      String   @id @default("singleton")
+  promptInjectionShield   Boolean  @default(true) @map("prompt_injection_shield")
+  maxUploadSizeMb         Int      @default(5) @map("max_upload_size_mb")
+  freeTierMonthlyLimit    Int      @default(3) @map("free_tier_monthly_limit")
+  proPriceInr             Int      @default(249) @map("pro_price_inr")
+  rateLimitWindowDays     Int      @default(30) @map("rate_limit_window_days")
+  maintenanceMode         Boolean  @default(false) @map("maintenance_mode")
+  allowedFileExtensions   Json     @default("[\".pdf\", \".docx\"]") @map("allowed_file_extensions")
+  updatedAt               DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("system_settings")
+}
+
+model SecurityLog {
+  id            String   @id
+  timestamp     DateTime @default(now()) @db.Timestamptz
+  event         String
+  severity      String
+  details       String
+  ip            String?  @db.Inet
+  actorEmail    String?  @map("actor_email")
+  targetUserId  String?  @map("target_user_id")
+  targetUser    User?    @relation(fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+  @@index([event, timestamp])
+  @@map("security_logs")
 }

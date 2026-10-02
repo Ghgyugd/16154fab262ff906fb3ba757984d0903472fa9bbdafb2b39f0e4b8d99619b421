@@ -16,6 +16,12 @@ Evaluate:
 3. Strengths: 3 to 5 clear competitive advantages the candidate already brings.
 4. Summary: Exactly one sharp, high-impact paragraph highlighting where the candidate stands and the single biggest opportunity for alignment.
 5. Inferred Job Title and Company Name (if discernible from the job description, otherwise sensible defaults).
+6. STAR suggestions: 3 to 6 rewrites of existing resume bullets using the STAR formula (Situation, Task, Action, Result) with the target keyword woven in. Never invent employers, dates, degrees or metrics.
+
+LENGTH LIMITS (hard requirements):
+- missing_keywords: at most 8 entries.
+- strengths: at most 5 entries.
+- Each STAR suggestion must stay under 60 words.
 
 CRITICAL REQUIREMENT:
 Respond ONLY with a valid, parseable JSON object matching this schema. Do NOT include markdown code blocks, backticks (\`\`\`json), or any conversational filler:
@@ -25,7 +31,14 @@ Respond ONLY with a valid, parseable JSON object matching this schema. Do NOT in
   "match_score": 78,
   "missing_keywords": ["keyword 1", "keyword 2", "keyword 3"],
   "strengths": ["strength 1", "strength 2", "strength 3"],
-  "summary": "One comprehensive paragraph summarizing alignment and critical gaps."
+  "summary": "One comprehensive paragraph summarizing alignment and critical gaps.",
+  "star_suggestions": [
+    {
+      "original": "The original resume bullet point, quoted verbatim",
+      "suggestion": "The same bullet rewritten with Situation, Task, Action, Result and a measurable outcome",
+      "keyword": "The single target keyword this bullet now evidences"
+    }
+  ]
 }`;
 
 export function buildScoreMatchPrompt(jobDescription: string, resumeText: string): string {
@@ -53,6 +66,12 @@ Rules:
    - EDUCATION & CERTIFICATIONS
    - PROJECTS / ACHIEVEMENTS
 4. Craft a compelling, highly personalized 3-paragraph Cover Letter tailored for the hiring manager of this specific role.
+
+LENGTH LIMITS (hard requirements):
+- tailored_resume_text must stay UNDER 700 words.
+- cover_letter_text must stay UNDER 350 words.
+- key_changes_made: at most 5 entries, one short sentence each.
+- Never invent experience, employers, dates, degrees or metrics the original resume does not support. Trim content instead of exceeding these limits.
 
 CRITICAL REQUIREMENT:
 Respond ONLY with a valid, parseable JSON object matching this schema. Do NOT include markdown code blocks or backticks:

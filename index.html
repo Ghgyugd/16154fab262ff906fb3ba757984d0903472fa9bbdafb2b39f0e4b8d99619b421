@@ -1,22 +1,62 @@
 <!doctype html>
-<html lang="en" class="bg-[#F2F6FC] text-[#0B2545]">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ResumeSetu — Precision Resume Matcher & ATS Tailoring</title>
-    <meta name="description" content="Match your resume against any job description, uncover missing keywords, and get tailored single-column resumes." />
-    <meta property="og:title" content="ResumeSetu — Precision Resume Matcher & ATS Tailoring" />
-    <meta property="og:description" content="Match your resume against any job description, uncover missing keywords, and get tailored single-column resumes." />
+    <title>ResumeSetu — Precision Resume Matcher &amp; ATS Tailoring</title>
+    <meta
+      name="description"
+      content="Match your resume against any job description, uncover missing keywords, and get tailored single-column resumes."
+    />
+    <meta property="og:title" content="ResumeSetu — Precision Resume Matcher &amp; ATS Tailoring" />
+    <meta
+      property="og:description"
+      content="Match your resume against any job description, uncover missing keywords, and get tailored single-column resumes."
+    />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Official Lenis Smooth Scroll Library -->
-    <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.18/dist/lenis.css">
-    <script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
+    <meta name="theme-color" content="#F7F9FC" />
+    <!-- Favicon: the same bridge emblem used by the top-nav Logo component. -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230B2545'/%3E%3Crect x='5.5' y='11' width='3.5' height='15' rx='1.5' fill='%23FFFFFF' fill-opacity='0.9'/%3E%3Cpath d='M5 11 L9.5 11' stroke='%23FFFFFF' stroke-width='1.5' stroke-linecap='round'/%3E%3Crect x='23' y='7' width='3.5' height='19' rx='1.5' fill='%23FFFFFF'/%3E%3Cpath d='M22.5 7 L27 7' stroke='%23FFFFFF' stroke-width='1.5' stroke-linecap='round'/%3E%3Cpath d='M 7.2 11 Q 16 23 24.8 7' stroke='%2360A5FA' stroke-width='2.2' stroke-linecap='round' fill='none'/%3E%3Cline x1='11.5' y1='16.5' x2='11.5' y2='21' stroke='%2393C5FD' stroke-width='1.2' stroke-linecap='round'/%3E%3Cline x1='16' y1='19.5' x2='16' y2='22.5' stroke='%2393C5FD' stroke-width='1.2' stroke-linecap='round'/%3E%3Cline x1='20.5' y1='16' x2='20.5' y2='21.5' stroke='%2393C5FD' stroke-width='1.2' stroke-linecap='round'/%3E%3Cline x1='4.5' y1='22' x2='27.5' y2='22' stroke='%23FFFFFF' stroke-width='1.8' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='19.5' r='1.8' fill='%23FFFFFF'/%3E%3C/svg%3E"
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Only the families actually referenced by the design system.
+      Lenis ships through the npm dependency and its required .lenis rules are
+      already duplicated in src/index.css, so the previous CDN <script>/<link>
+      pair (which loaded a second, older copy) has been removed.
+
+      The stylesheet is loaded non-render-blocking (preload + print-media swap):
+      a render-blocking fetch of 4 font families used to delay first paint
+      until fonts.googleapis.com responded.
+    -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;700;800&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;700;800&display=swap"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;700;800&display=swap"
+      />
+    </noscript>
   </head>
-  <body class="bg-[#F2F6FC] text-[#0B2545] antialiased overflow-x-hidden selection:bg-[#1D4ED8] selection:text-white">
+  <body>
+    <noscript>
+      ResumeSetu needs JavaScript enabled to analyse your resume.
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

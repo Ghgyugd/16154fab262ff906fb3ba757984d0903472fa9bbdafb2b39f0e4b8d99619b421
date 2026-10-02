@@ -1,3 +1,4 @@
+import { FREE_SCAN_LIMIT, hasAdminPrivileges } from '../config.js';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   ArrowRight,
@@ -31,24 +32,30 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDeleteData,
   isSignedIn = false,
 }) => {
-  const { user, firebaseUser, logout, setAuthModalOpen } = useAuth();
+  const { user, clerkUser, logout, setAuthModalOpen } = useAuth();
   const { scrollTo } = useLenisScroll();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const profileMenuRef = useRef<HTMLDivElement>(null);
+  // Separate refs per avatar: the workspace and landing headers each render their
+  // own trigger, and sharing one ref coupled the click-outside handler to
+  // whichever branch happened to mount.
+  const workspaceProfileRef = useRef<HTMLDivElement>(null);
+  const landingProfileRef = useRef<HTMLDivElement>(null);
 
   const isPro = user?.plan === 'pro';
-  const creditsRemaining = user?.credits_remaining ?? 3;
+  const creditsRemaining = user?.credits_remaining ?? FREE_SCAN_LIMIT;
   const isWorkspace = currentTab === 'dashboard' || currentTab === 'admin';
-  const isAdmin =
-    user?.isAdmin ||
-    user?.role === 'OWNER' ||
-    user?.email?.toLowerCase().trim() === 'anjana2771patel@gmail.com';
+  const isAdmin = hasAdminPrivileges(user);
 
-  // Close profile dropdown on click outside
+  // Close whichever profile dropdown is open on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const insideWorkspace =
+        workspaceProfileRef.current && workspaceProfileRef.current.contains(target);
+      const insideLanding = landingProfileRef.current && landingProfileRef.current.contains(target);
+      if (!insideWorkspace && !insideLanding) {
         setProfileDropdownOpen(false);
       }
     };
@@ -56,13 +63,25 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Scrolling to an anchor on a view that is not mounted yet needs to happen
+  // after React commits the landing page. A fixed 100ms timeout raced the render
+  // and silently dropped the scroll on slow frames.
+  useEffect(() => {
+    if (!pendingAnchor) return;
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollTo(pendingAnchor, { offset: -76 });
+        setPendingAnchor(null);
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingAnchor, currentTab, scrollTo]);
+
   const handleNavClick = (anchor: string) => {
     setMobileMenuOpen(false);
     if (currentTab !== 'landing') {
       setCurrentTab('landing');
-      setTimeout(() => {
-        scrollTo(anchor, { offset: -76 });
-      }, 100);
+      setPendingAnchor(anchor);
     } else {
       scrollTo(anchor, { offset: -76 });
     }
@@ -86,12 +105,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const userEmail =
-    firebaseUser?.email ||
+    clerkUser?.email ||
     user?.email ||
-    (firebaseUser?.isAnonymous ? 'Guest Candidate' : 'Candidate Profile');
+    (user?.isAnonymous ? 'Guest Candidate' : 'Candidate Profile');
 
   const userDisplayName =
-    firebaseUser?.displayName ||
+    clerkUser?.displayName ||
     user?.displayName ||
     (userEmail.includes('@') ? userEmail.split('@')[0] : userEmail);
 
@@ -99,7 +118,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     .slice(0, 2)
     .toUpperCase();
 
-  const userAvatarUrl = firebaseUser?.photoURL || user?.photoURL;
+  const userAvatarUrl = clerkUser?.photoURL || user?.photoURL;
 
   return (
     <header className="glass-panel sticky top-0 z-50 w-full max-w-full overflow-x-clip !bg-white/75 backdrop-blur-2xl border-b border-white/80 shadow-[0_8px_32px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all">
@@ -170,14 +189,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ) : (
                   <>
                     <span className="hidden min-[400px]:inline">Free Tier • </span>
-                    <span>{creditsRemaining}/3 Scans</span>
+                    <span>{creditsRemaining}/{FREE_SCAN_LIMIT} Scans</span>
                   </>
                 )}
               </span>
             </div>
 
             {/* Consolidated Interactive Profile Avatar Trigger (NO standalone gear) */}
-            <div className="relative shrink-0" ref={profileMenuRef}>
+            <div className="relative shrink-0" ref={workspaceProfileRef}>
               <button
                 type="button"
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
@@ -246,7 +265,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             isPro ? 'bg-emerald-500 animate-pulse' : 'bg-[#1D4ED8]'
                           }`}
                         />
-                        {isPro ? 'Pro Member' : `Free Tier (${creditsRemaining}/3 Scans)`}
+                        {isPro ? 'Pro Member' : `Free Tier (${creditsRemaining}/${FREE_SCAN_LIMIT} Scans)`}
                       </span>
                     </div>
 
@@ -375,7 +394,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className={`w-1.5 h-1.5 rounded-full ${isPro ? 'bg-emerald-500' : 'bg-[#1D4ED8]'}`}
                     />
                     <span className="whitespace-nowrap">
-                      {isPro ? 'Pro Active' : `Free Tier • ${creditsRemaining}/3 Scans`}
+                      {isPro ? 'Pro Active' : `Free Tier • ${creditsRemaining}/${FREE_SCAN_LIMIT} Scans`}
                     </span>
                   </div>
 
@@ -391,7 +410,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
 
                   {/* Profile Avatar trigger on landing page */}
-                  <div className="relative shrink-0" ref={profileMenuRef}>
+                  <div className="relative shrink-0" ref={landingProfileRef}>
                     <button
                       type="button"
                       onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}

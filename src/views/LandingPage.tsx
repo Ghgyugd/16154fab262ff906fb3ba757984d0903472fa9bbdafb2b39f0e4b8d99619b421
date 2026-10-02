@@ -19,9 +19,8 @@ import { ThreeStepPipeline } from '../components/ThreeStepPipeline.js';
 import { CapabilitiesBento } from '../components/CapabilitiesBento.js';
 import { AtsPipelineDiagram } from '../components/AtsPipelineDiagram.js';
 import { BulletDiffExplorer } from '../components/BulletDiffExplorer.js';
-import { CompanyTrustStrip } from '../components/CompanyTrustStrip.js';
-import { CandidateProofSection } from '../components/CandidateProofSection.js';
 import { Logo } from '../components/Logo.js';
+import { FREE_SCAN_LIMIT, PRO_PRICE_INR } from '../config.js';
 
 interface LandingPageProps {
   onScanClick: () => void;
@@ -43,12 +42,12 @@ const FAQS = [
   {
     question: 'What file format do I get upon export?',
     answer:
-      'You receive an editable Microsoft Word (.docx) document formatted to strict single-column ATS specifications that pass automated screening with zero OCR syntax errors, plus a matching custom cover letter.',
+      'You receive an editable Microsoft Word (.docx) document laid out in a single column, which is the layout applicant tracking parsers read most reliably, plus a matching custom cover letter. We do not submit your file to third-party parsers, so we cannot claim a pass rate.',
   },
   {
-    question: 'Why ₹249/month instead of pay-per-resume?',
+    question: `Why ₹${PRO_PRICE_INR}/month instead of pay-per-resume?`,
     answer:
-      'Active job seekers submit dozens of tailored applications. Charging ₹500 or ₹1,000 per resume penalizes persistent applicants. ResumeSetu Pro gives you unlimited resume scans and tailoring for less than ₹9/day until you land your next role.',
+      `Active job seekers submit dozens of tailored applications. Charging ₹500 or ₹1,000 per resume penalizes persistent applicants. ResumeSetu Pro gives you unlimited resume scans and tailoring for less than ₹9/day until you land your next role.`,
   },
   {
     question: 'Can I cancel anytime?',
@@ -102,15 +101,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 Scan your resume against any job description. Uncover missing keyword tokens, reverse-engineer recruiter screening rubrics, and export ATS-compliant single-column Word documents.
               </p>
 
-              {/* Visual Performance Metrics Bar */}
+              {/* What the product actually returns — no unverifiable success statistics */}
               <div className="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-white/80 shadow-[0_4px_16px_rgba(11,37,69,0.04),inset_0_1px_0_rgba(255,255,255,0.95)] max-w-xl">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200/70 shadow-2xs">
                     <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
                   </div>
                   <div>
-                    <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">98.4%</span>
-                    <span className="text-[10px] text-[#627D98] block font-medium">ATS Pass Rate</span>
+                    <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">0–100</span>
+                    <span className="text-[10px] text-[#627D98] block font-medium">Match Score</span>
                   </div>
                 </div>
 
@@ -119,8 +118,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <Zap className="w-4 h-4 text-[#1D4ED8] fill-[#1D4ED8]/20" />
                   </div>
                   <div>
-                    <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">&lt; 4s</span>
-                    <span className="text-[10px] text-[#627D98] block font-medium">Live Match</span>
+                    <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">Live</span>
+                    <span className="text-[10px] text-[#627D98] block font-medium">Keyword Scan</span>
                   </div>
                 </div>
 
@@ -129,8 +128,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <HugeiconsIcon icon={Shield01Icon} size={16} className="text-purple-600" />
                   </div>
                   <div>
-                    <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">0 Traps</span>
-                    <span className="text-[10px] text-[#627D98] block font-medium">OCR Clean</span>
+                    <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">Yours</span>
+                    <span className="text-[10px] text-[#627D98] block font-medium">Your Resume Only</span>
                   </div>
                 </div>
               </div>
@@ -138,6 +137,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* 3D Elevated Action Buttons with Rich Gradient */}
               <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 max-w-xl">
                 <button
+                  type="button"
                   onClick={onScanClick}
                   className="flex-1 px-6 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#3B82F6] hover:from-[#1E40AF] hover:via-[#1D4ED8] hover:to-[#2563EB] transition-all cursor-pointer flex items-center justify-center gap-3 shadow-[0_12px_28px_-4px_rgba(29,78,216,0.5),0_4px_12px_-2px_rgba(29,78,216,0.3),inset_0_1px_0_rgba(255,255,255,0.35)] hover:shadow-[0_16px_36px_-4px_rgba(29,78,216,0.65)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-md"
                 >
@@ -157,13 +157,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </a>
               </div>
 
-              {/* CLEAN HORIZONTAL COMPARISON BAR (Replacing broken trust-row element) */}
+              {/* CLEAN HORIZONTAL COMPARISON BAR (What you send in / what you get back) */}
               <div className="glass-panel p-4 sm:p-5 rounded-2xl !bg-white/55 backdrop-blur-xl border border-white/80 shadow-[0_12px_32px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] max-w-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-[#0B2545]">Resume Match Calibration</span>
                     <span className="font-cursive text-base text-[#1D4ED8] font-bold">
-                      +46% average lift
+                      Measured on your own scan
                     </span>
                   </div>
                   <span className="text-[10px] font-mono text-[#627D98] font-bold uppercase">
@@ -171,42 +171,42 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </span>
                 </div>
 
-                {/* Horizontal Comparison Dual Bars: Before: 48% (ink-400) next to After: 94% (signal-600) */}
+                {/* What the engine reads vs. what it reports back */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                  {/* Before: 48% Bar */}
+                  {/* Input side */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-[11px]">
                       <div className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#627D98]" />
-                        <span className="font-semibold text-[#475569]">Before: Raw Resume</span>
+                        <span className="font-semibold text-[#475569]">Input: Your Resume + Job Post</span>
                       </div>
                       <span className="font-mono font-bold text-[#334E68] bg-white border border-[#CBD5E1] px-2.5 py-0.5 rounded-full text-[10px] shadow-2xs">
-                        48% Match
+                        Text Extraction
                       </span>
                     </div>
                     <div className="h-3 w-full rounded-full bg-slate-200/80 overflow-hidden p-0.5 shadow-inner">
                       <div
                         className="h-full rounded-full bg-[#627D98] transition-all duration-1000 shadow-sm"
-                        style={{ width: '48%' }}
+                        style={{ width: '100%' }}
                       />
                     </div>
                   </div>
 
-                  {/* After: 94% Bar */}
+                  {/* Output side */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-[11px]">
                       <div className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        <span className="font-bold text-[#1D4ED8]">After: Calibrated (.docx)</span>
+                        <span className="font-bold text-[#1D4ED8]">Output: Score + Keyword Gaps</span>
                       </div>
                       <span className="font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[10px] shadow-2xs">
-                        94% Shortlist
+                        0–100 Match
                       </span>
                     </div>
                     <div className="h-3 w-full rounded-full bg-blue-100/80 overflow-hidden p-0.5 shadow-inner">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-emerald-500 transition-all duration-1000 shadow-sm"
-                        style={{ width: '94%' }}
+                        style={{ width: '100%' }}
                       />
                     </div>
                   </div>
@@ -215,12 +215,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {/* Plain language reassurance points */}
                 <div className="flex flex-wrap items-center justify-between gap-y-1.5 gap-x-2 text-[11px] text-[#627D98] pt-2 border-t border-slate-200/60">
                   <span className="flex items-center gap-1.5 font-bold text-[#0B2545] whitespace-nowrap">
-                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> 3 free scans / month
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> {FREE_SCAN_LIMIT} free scans / month
                   </span>
                   <span className="text-slate-300 hidden sm:inline">·</span>
                   <span className="font-medium whitespace-nowrap">Single-column Word</span>
                   <span className="text-slate-300 hidden sm:inline">·</span>
-                  <span className="font-medium whitespace-nowrap">Zero data retention</span>
+                  <span className="font-medium whitespace-nowrap">Encrypted at rest, delete anytime</span>
                 </div>
               </div>
             </div>
@@ -231,10 +231,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </div>
 
-          {/* Social Proof Strip */}
-          <div className="mt-14 pt-8 border-t border-[#8DA9C4]/20">
-            <CompanyTrustStrip />
-          </div>
+          {/* The previous "Candidates Interviewed & Hired At" logo strip and the
+              named-case-study section were removed: they asserted employer
+              endorsements and candidate outcomes that were never verified. */}
         </div>
       </section>
 
@@ -259,12 +258,58 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <BulletDiffExplorer />
 
       {/* =========================================================================
-          6. CANDIDATE PROOF & VERIFIED CASE STUDIES
+          6. WHAT THE PRODUCT REPORTS BACK
+             Replaces a "verified case study" section whose candidates, offers and
+             score lifts were invented, and which we cannot substantiate.
          ========================================================================= */}
-      <CandidateProofSection />
+      <section id="proof" className="py-20 sm:py-28 border-b border-[#8DA9C4]/30 relative">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <div className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-[#1D4ED8] mb-2">
+              <HugeiconsIcon icon={Target02Icon} size={16} className="text-[#1D4ED8]" />
+              <span>What Every Scan Reports</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#0B2545] tracking-tight">
+              Facts From Your Own Documents
+            </h2>
+            <p className="mt-3 text-base sm:text-lg text-[#334E68] leading-relaxed">
+              We do not publish candidate success stories we cannot verify. Instead, here is exactly
+              what every scan hands back to you.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                title: '0–100 Match Score',
+                body: 'A keyword-coverage score computed between your resume text and the job description you pasted. Same inputs, same score, every time.',
+              },
+              {
+                title: 'Keyword Gap List',
+                body: 'The specific terms the job asks for that your resume does not contain, listed verbatim so you can decide which ones you actually have experience with.',
+              },
+              {
+                title: 'STAR Guidance',
+                body: 'A prompt per missing keyword telling you which bullet to write. It never writes your achievements for you and never invents a metric.',
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="p-7 sm:p-8 rounded-3xl bg-white/55 backdrop-blur-xl border border-white/80 shadow-[0_12px_32px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] space-y-3"
+              >
+                <div className="flex items-center gap-2">
+                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600" />
+                  <h3 className="text-base font-bold text-[#0B2545]">{item.title}</h3>
+                </div>
+                <p className="text-xs sm:text-sm text-[#334E68] leading-relaxed">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* =========================================================================
-          7. PRICING LAYOUT: TWO SIDE-BY-SIDE 3D CARDS (Free vs Pro at ₹249/mo)
+          7. PRICING LAYOUT: TWO SIDE-BY-SIDE 3D CARDS (Free vs Pro)
              Pro Card is Highly Prominent with Dark Navy Background & Electric Blue Button
          ========================================================================= */}
       <section id="pricing" className="py-20 sm:py-28 border-b border-[#8DA9C4]/30 scroll-mt-16 relative">
@@ -277,7 +322,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Invest Less Than ₹9/Day In Your Career
             </h2>
             <p className="mt-3 text-base sm:text-lg text-[#334E68] leading-relaxed">
-              Start free with 3 resume audits every month. Upgrade to Pro for unlimited tailoring across every opportunity until you sign your offer.
+              Start free with {FREE_SCAN_LIMIT} resume audits every month. Upgrade to Pro for unlimited tailoring across every opportunity until you sign your offer.
             </p>
           </div>
 
@@ -298,13 +343,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
 
                 <p className="text-xs sm:text-sm text-[#334E68] leading-relaxed">
-                  Evaluate resume compatibility on 3 targeted job descriptions every single month.
+                  Evaluate resume compatibility on {FREE_SCAN_LIMIT} targeted job descriptions every single month.
                 </p>
 
                 <div className="pt-5 border-t border-slate-100/80 space-y-3.5 text-xs sm:text-sm text-[#0B2545]">
                   <div className="flex items-center gap-2.5">
                     <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600 shrink-0" />
-                    <span>3 job match analyses each month</span>
+                    <span>{FREE_SCAN_LIMIT} job match analyses each month</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600 shrink-0" />
@@ -320,16 +365,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                   <div className="flex items-center gap-2.5 text-[#627D98]">
                     <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600 shrink-0" />
-                    <span>Zero data retention privacy</span>
+                    <span>Encrypted at rest, delete your data on request</span>
                   </div>
                 </div>
               </div>
 
               <button
+                type="button"
                 onClick={onScanClick}
                 className="w-full py-4 px-5 rounded-xl border border-[#8DA9C4]/40 bg-gradient-to-b from-white/90 to-[#EEF4FB]/90 hover:from-[#EEF4FB] hover:to-[#E2ECF6] text-[#0B2545] font-bold text-xs uppercase tracking-wider transition-all shadow-[0_4px_12px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,1)] hover:shadow-md cursor-pointer"
               >
-                Start Free (3 Scans / Month)
+                Start Free ({FREE_SCAN_LIMIT} Scans / Month)
               </button>
             </div>
 
@@ -349,7 +395,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
 
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-4xl sm:text-5xl font-extrabold font-mono text-white">₹249</span>
+                  <span className="text-4xl sm:text-5xl font-extrabold font-mono text-white">₹{PRO_PRICE_INR}</span>
                   <span className="text-xs text-[#8DA9C4]">/ month</span>
                 </div>
 
@@ -406,10 +452,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Primary Action Button in Electric Blue Gradient */}
               <div className="relative z-10 pt-2">
                 <button
+                  type="button"
                   onClick={onOpenPaywall}
                   className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#38BDF8] hover:from-[#1E40AF] hover:via-[#1D4ED8] hover:to-[#2563EB] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-[0_12px_28px_-4px_rgba(29,78,216,0.65),inset_0_1px_0_rgba(255,255,255,0.4)] cursor-pointer active:translate-y-0.5 flex items-center justify-center gap-2.5"
                 >
-                  <span>Upgrade to Pro — ₹249/mo</span>
+                  <span>Upgrade to Pro — ₹{PRO_PRICE_INR}/mo</span>
                   <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
                     <ArrowRight className="w-3.5 h-3.5 text-white" />
                   </span>
@@ -444,11 +491,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 className="rounded-2xl bg-white/45 backdrop-blur-2xl border border-white/70 overflow-hidden shadow-[0_4px_16px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] hover:shadow-md transition-all"
               >
                 <button
+                  type="button"
                   onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                  aria-expanded={openFaq === idx}
+                  aria-controls={`faq-panel-${idx}`}
                   className="w-full px-6 py-4.5 text-left flex items-center justify-between text-sm font-bold text-[#0B2545] hover:text-[#1D4ED8] transition-colors cursor-pointer"
                 >
                   <span>{faq.question}</span>
                   <ChevronDown
+                    aria-hidden="true"
                     className={`w-4 h-4 text-[#8DA9C4] transition-transform duration-200 ${
                       openFaq === idx ? 'rotate-180 text-[#1D4ED8]' : ''
                     }`}
@@ -456,7 +507,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </button>
 
                 {openFaq === idx && (
-                  <div className="px-6 pb-5 text-xs sm:text-sm text-[#334E68] leading-relaxed border-t border-slate-100 pt-3.5">
+                  <div
+                    id={`faq-panel-${idx}`}
+                    role="region"
+                    aria-label={faq.question}
+                    className="px-6 pb-5 text-xs sm:text-sm text-[#334E68] leading-relaxed border-t border-slate-100 pt-3.5"
+                  >
                     {faq.answer}
                   </div>
                 )}
@@ -480,6 +536,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <div className="flex items-center gap-6 text-xs text-[#8DA9C4]">
             <button
+              type="button"
               onClick={onOpenDeleteData}
               className="hover:text-white transition-colors cursor-pointer font-medium"
             >
@@ -487,10 +544,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </button>
             <span>·</span>
             <button
+              type="button"
               onClick={onOpenPaywall}
               className="hover:text-white transition-colors cursor-pointer font-medium"
             >
-              Pro Membership (₹249/mo)
+              Pro Membership (₹{PRO_PRICE_INR}/mo)
             </button>
             <span>·</span>
             <span className="text-[#8DA9C4]/60">© 2026 ResumeSetu</span>

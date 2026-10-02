@@ -1,5 +1,9 @@
 import { ModelRequestOptions } from './gemini.js';
 
+const REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_API_VERSION = '2023-06-01';
+const MAX_OUTPUT_TOKENS = 8192;
+
 export class AnthropicAdapter {
   public id = 'anthropic';
   public name = 'Anthropic Claude';
@@ -14,22 +18,33 @@ export class AnthropicAdapter {
       throw new Error('ANTHROPIC_API_KEY is not set in environment.');
     }
 
-    const model = options.modelName || 'claude-3-5-haiku-20241022';
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 4096,
-        temperature: options.temperature ?? 0.2,
-        system: (options.systemInstruction || '') + '\nRespond ONLY in strict JSON without markdown formatting.',
-        messages: [{ role: 'user', content: options.prompt }],
-      }),
-    });
+    const model = options.modelName || 'claude-haiku-4-5';
+    const apiVersion = process.env.ANTHROPIC_API_VERSION || DEFAULT_API_VERSION;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': apiVersion,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: MAX_OUTPUT_TOKENS,
+          temperature: options.temperature ?? 0.2,
+          system: (options.systemInstruction || '') + '\nRespond ONLY in strict JSON without markdown formatting.',
+          messages: [{ role: 'user', content: options.prompt }],
+        }),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();

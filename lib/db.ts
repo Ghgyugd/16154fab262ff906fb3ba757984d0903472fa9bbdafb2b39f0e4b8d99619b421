@@ -66,7 +66,9 @@ export interface SecurityLog {
     | 'RATE_LIMIT_HIT'
     | 'LLM_ROUTED'
     | 'ADMIN_LOGIN'
-    | 'CREDITS_UPDATED';
+    | 'CREDITS_UPDATED'
+    | 'USER_EDITED'
+    | 'GUEST_MIGRATED';
   severity: 'info' | 'warning' | 'critical';
   details: string;
   ip?: string;
@@ -102,6 +104,12 @@ export interface Resume {
   userId: string;
   originalFileName: string;
   fileUrl: string;
+  /** Basename of the encrypted envelope in the local vault. */
+  storageKey?: string;
+  storageProvider?: 'local_encrypted' | 'supabase';
+  /** Public, authorization-gated download path for the original document. */
+  downloadUrl?: string;
+  mimeType?: string;
   parsedText: string;
   starFormattedBullets?: Array<{ bullet: string; category: string; impact: string }> | null;
   createdAt: string;
@@ -120,6 +128,9 @@ export interface JobScan {
   starSuggestions?: Array<{ original: string; suggestion: string; keyword: string }> | null;
   tailoredResumeText?: string | null;
   coverLetterText?: string | null;
+  /** True when the stored tailored text came from the local fallback, not a model. */
+  tailoredSynthetic?: boolean;
+  tailoredNotice?: string;
   createdAt: string;
 }
 
@@ -152,9 +163,9 @@ const DB_FILE = path.resolve(DATA_DIR, 'db.json');
 const DEFAULT_LLM_CONFIGS: Record<string, LLMConfig> = {
   'llm_groq_llama70b': {
     id: 'llm_groq_llama70b',
-    name: 'Groq Llama-3.3-70b Versatile',
+    name: 'Groq GPT-OSS 120B',
     provider: 'groq',
-    modelId: 'llama-3.3-70b-versatile',
+    modelId: 'openai/gpt-oss-120b',
     apiKeyEnv: 'GROQ_API_KEY',
     contextWindow: '128k',
     latencyTier: 'sub-second',
@@ -176,7 +187,7 @@ const DEFAULT_LLM_CONFIGS: Record<string, LLMConfig> = {
     id: 'llm_gemini_15_pro',
     name: 'Google Gemini 1.5 Pro',
     provider: 'gemini',
-    modelId: 'gemini-1.5-pro',
+    modelId: 'gemini-2.5-pro',
     apiKeyEnv: 'GEMINI_API_KEY',
     contextWindow: '2M',
     latencyTier: 'deep-reasoning',
@@ -198,7 +209,7 @@ const DEFAULT_LLM_CONFIGS: Record<string, LLMConfig> = {
     id: 'llm_anthropic_claude35',
     name: 'Anthropic Claude 3.5 Sonnet',
     provider: 'anthropic',
-    modelId: 'claude-3-5-sonnet-20241022',
+    modelId: 'claude-sonnet-4-5',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
     contextWindow: '200k',
     latencyTier: 'deep-reasoning',
@@ -430,6 +441,43 @@ function saveDb(data: DatabaseSchema): void {
   }
 }
 
+const MAX_SECURITY_LOGS = 200;
+
+/**
+ * Appends an audit entry to an in-memory state object WITHOUT persisting it.
+ *
+ * Audit-writing methods must use this instead of db.addSecurityLog():
+ * addSecurityLog() re-reads the file into a fresh object and saves on its own,
+ * so the caller's subsequent saveDb(state) would overwrite the entry with a
+ * stale snapshot and silently discard the audit trail.
+ */
+function appendSecurityLog(
+  state: DatabaseSchema,
+  logData: Omit<SecurityLog, 'id' | 'timestamp'>
+): SecurityLog {
+  const log: SecurityLog = {
+    ...logData,
+    id: `sec_${crypto.randomUUID().slice(0, 8)}`,
+    timestamp: new Date().toISOString(),
+  };
+  if (!Array.isArray(state.securityLogs)) state.securityLogs = [];
+  state.securityLogs.push(log);
+  if (state.securityLogs.length > MAX_SECURITY_LOGS) {
+    state.securityLogs = state.securityLogs.slice(-MAX_SECURITY_LOGS);
+  }
+  return log;
+}
+
+/**
+ * Normalizes a persisted scan counter. Legacy records predate monthlyScansUsed
+ * and other numeric fields; without coercion `undefined + 1` becomes NaN, which
+ * serializes to JSON null and then defeats every `>= limit` quota comparison.
+ */
+function coerceCounter(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
 export const db = {
   // ---------------------------------------------------------------------------
   // USER METHODS
@@ -539,6 +587,20 @@ export const db = {
     return newUser;
   },
 
+  updateUserProfile(
+    id: string,
+    updates: Pick<User, 'email' | 'displayName' | 'authProviderId'>
+  ): User | null {
+    const state = ensureDb();
+    const user = state.users[id];
+    if (!user) return null;
+
+    const updated = { ...user, ...updates, updatedAt: new Date().toISOString() };
+    state.users[id] = updated;
+    saveDb(state);
+    return updated;
+  },
+
   getAllUsers(): User[] {
     const state = ensureDb();
     return Object.values(state.users).sort(
@@ -554,7 +616,7 @@ export const db = {
     user.currentPlan = user.currentPlan === 'PRO' ? 'FREE' : 'PRO';
     user.updatedAt = new Date().toISOString();
     state.users[userId] = user;
-    this.addSecurityLog({
+    appendSecurityLog(state, {
       event: 'PRO_TOGGLED',
       severity: 'info',
       details: `Plan for user ${user.email} toggled to ${user.currentPlan}.`,
@@ -572,7 +634,7 @@ export const db = {
     user.currentPlan = plan;
     user.updatedAt = new Date().toISOString();
     state.users[userId] = user;
-    this.addSecurityLog({
+    appendSecurityLog(state, {
       event: 'PRO_TOGGLED',
       severity: 'info',
       details: `Plan for user ${user.email} updated to ${plan}.`,
@@ -597,7 +659,7 @@ export const db = {
     }
     user.updatedAt = new Date().toISOString();
     state.users[userId] = user;
-    this.addSecurityLog({
+    appendSecurityLog(state, {
       event: 'ROLE_CHANGED',
       severity: 'warning',
       details: `User ${user.email} role updated to ${user.role} (isAdmin: ${user.isAdmin}).`,
@@ -622,7 +684,7 @@ export const db = {
     user.updatedAt = new Date().toISOString();
     state.users[userId] = user;
 
-    this.addSecurityLog({
+    appendSecurityLog(state, {
       event: isBanned ? 'USER_BANNED' : 'USER_UNBANNED',
       severity: isBanned ? 'critical' : 'info',
       details: isBanned
@@ -641,20 +703,64 @@ export const db = {
     if (!user) throw new Error(`User not found: ${userId}`);
 
     const isOwner = user.email.toLowerCase().trim() === OWNER_EMAIL;
+
+    // Explicit allow-list. A blind {...user, ...updates} let any caller rewrite
+    // identity fields (including the primary key `id`) through the admin API.
+    const EDITABLE_FIELDS = [
+      'displayName',
+      'currentPlan',
+      'role',
+      'isAdmin',
+      'monthlyScansUsed',
+      'isBanned',
+      'banReason',
+    ] as const;
+
+    const sanitized: Partial<User> = {};
+    for (const key of EDITABLE_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(updates, key)) {
+        (sanitized as Record<string, unknown>)[key] = (
+          updates as Record<string, unknown>
+        )[key];
+      }
+    }
+
+    if (sanitized.currentPlan && !['FREE', 'PRO'].includes(String(sanitized.currentPlan))) {
+      throw new Error(`Invalid plan: ${sanitized.currentPlan}. Expected FREE or PRO.`);
+    }
+    if (sanitized.role && !['OWNER', 'ADMIN', 'USER'].includes(String(sanitized.role))) {
+      throw new Error(`Invalid role: ${sanitized.role}.`);
+    }
+    if (sanitized.monthlyScansUsed !== undefined) {
+      sanitized.monthlyScansUsed = coerceCounter(sanitized.monthlyScansUsed);
+    }
+    if (typeof sanitized.displayName === 'string') {
+      sanitized.displayName = sanitized.displayName.slice(0, 120);
+    }
+
+    // Preserve owner protection: these three are never admin-editable.
     if (isOwner) {
-      // Preserve owner protection
-      updates.isAdmin = true;
-      updates.role = 'OWNER';
-      updates.isBanned = false;
+      sanitized.isAdmin = true;
+      sanitized.role = 'OWNER';
+      sanitized.isBanned = false;
+      sanitized.currentPlan = 'PRO';
     }
 
     const updatedUser: User = {
       ...user,
-      ...updates,
+      ...sanitized,
       updatedAt: new Date().toISOString(),
     };
 
     state.users[userId] = updatedUser;
+    appendSecurityLog(state, {
+      event: 'USER_EDITED',
+      severity: 'info',
+      details: `User ${user.email} updated. Fields: ${
+        Object.keys(sanitized).join(', ') || 'none'
+      }.`,
+      targetUserId: userId,
+    });
     saveDb(state);
     return updatedUser;
   },
@@ -667,7 +773,7 @@ export const db = {
     user.monthlyScansUsed = Math.max(0, user.monthlyScansUsed - credits);
     user.updatedAt = new Date().toISOString();
     state.users[userId] = user;
-    this.addSecurityLog({
+    appendSecurityLog(state, {
       event: 'CREDITS_UPDATED',
       severity: 'info',
       details: `Added ${credits} scan credits to user ${user.email}.`,
@@ -830,7 +936,7 @@ export const db = {
       fallbackModelId,
     };
     state.taskBindings[task] = updated;
-    this.addSecurityLog({
+    appendSecurityLog(state, {
       event: 'LLM_ROUTED',
       severity: 'info',
       details: `Task binding for '${task}' updated to primary: ${primaryModelId}, fallback: ${fallbackModelId}.`,
@@ -865,44 +971,69 @@ export const db = {
 
   addSecurityLog(logData: Omit<SecurityLog, 'id' | 'timestamp'>): SecurityLog {
     const state = ensureDb();
-    const log: SecurityLog = {
-      ...logData,
-      id: `sec_${crypto.randomUUID().slice(0, 8)}`,
-      timestamp: new Date().toISOString(),
-    };
-    if (!state.securityLogs) state.securityLogs = [];
-    state.securityLogs.push(log);
-    // Keep max 200 logs
-    if (state.securityLogs.length > 200) {
-      state.securityLogs = state.securityLogs.slice(-200);
-    }
+    const log = appendSecurityLog(state, logData);
     saveDb(state);
     return log;
   },
 
   incrementScanUsage(userId: string): { allowed: boolean; remaining: number } {
     const state = ensureDb();
-    const user = state.users[userId];
+    const freeLimit = Number(state.systemSettings?.freeTierMonthlyLimit) > 0
+      ? Number(state.systemSettings?.freeTierMonthlyLimit)
+      : 3;
+    // Sentinel for "effectively unlimited" on PRO plans. Mirrored client-side.
+    const PRO_UNLIMITED = 9999;
+
+    let user = state.users[userId];
+
     if (!user) {
-      return { allowed: true, remaining: 2 };
+      // Provision the record so the counter actually persists. Returning
+      // {allowed:true} without writing let every guest browser scan forever.
+      user = {
+        id: userId,
+        email: `${userId}@guest.resumesetu.app`,
+        authProviderId: null,
+        currentPlan: 'FREE',
+        monthlyScansUsed: 0,
+        creditResetDate: getNextResetDate(),
+        isAdmin: false,
+        role: 'USER',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      state.users[userId] = user;
+    }
+
+    // Repair legacy/invalid counters before any comparison.
+    user.monthlyScansUsed = coerceCounter(user.monthlyScansUsed);
+    if (!user.creditResetDate || Number.isNaN(new Date(user.creditResetDate).getTime())) {
+      user.creditResetDate = getNextResetDate();
+    }
+
+    // Rolling window reset for free plans.
+    if (user.currentPlan === 'FREE' && new Date() > new Date(user.creditResetDate)) {
+      user.monthlyScansUsed = 0;
+      user.creditResetDate = getNextResetDate();
     }
 
     if (user.currentPlan === 'PRO') {
       user.monthlyScansUsed += 1;
+      user.updatedAt = new Date().toISOString();
       state.users[userId] = user;
       saveDb(state);
-      return { allowed: true, remaining: 9999 };
+      return { allowed: true, remaining: PRO_UNLIMITED };
     }
 
-    // Free plan: strictly 3 scans per month
-    if (user.monthlyScansUsed >= 3) {
+    if (user.monthlyScansUsed >= freeLimit) {
+      saveDb(state);
       return { allowed: false, remaining: 0 };
     }
 
     user.monthlyScansUsed += 1;
+    user.updatedAt = new Date().toISOString();
     state.users[userId] = user;
     saveDb(state);
-    return { allowed: true, remaining: Math.max(0, 3 - user.monthlyScansUsed) };
+    return { allowed: true, remaining: Math.max(0, freeLimit - user.monthlyScansUsed) };
   },
 
   upgradeToPro(userId: string): User {
@@ -969,6 +1100,16 @@ export const db = {
   getResume(id: string): Resume | null {
     const state = ensureDb();
     return state.resumes[id] || null;
+  },
+
+  updateResume(id: string, updates: Partial<Resume>): Resume | null {
+    const state = ensureDb();
+    const resume = state.resumes[id];
+    if (!resume) return null;
+    const updated: Resume = { ...resume, ...updates };
+    state.resumes[id] = updated;
+    saveDb(state);
+    return updated;
   },
 
   getResumesByUser(userId: string): Resume[] {
@@ -1074,7 +1215,19 @@ export const db = {
       return { resumesMigrated: 0, scansMigrated: 0, applicationsMigrated: 0 };
     }
 
+    // Only anonymous guest tokens may be migrated. Without this guard a caller
+    // could hand over any arbitrary userId and take over that account's data.
+    if (!/^guest_[A-Za-z0-9_-]+$/.test(guestId)) {
+      throw new Error('Invalid guest token: not a recognized guest session id.');
+    }
+
     const state = ensureDb();
+
+    // The destination must be a real, provisioned account.
+    if (!state.users[authenticatedUserId]) {
+      throw new Error(`Cannot migrate to unknown user: ${authenticatedUserId}.`);
+    }
+
     let resumesMigrated = 0;
     let scansMigrated = 0;
     let applicationsMigrated = 0;
@@ -1103,6 +1256,12 @@ export const db = {
       }
     }
 
+    appendSecurityLog(state, {
+      event: 'GUEST_MIGRATED',
+      severity: 'info',
+      details: `Guest session ${guestId} merged into ${authenticatedUserId} (Resumes: ${resumesMigrated}, Scans: ${scansMigrated}, Apps: ${applicationsMigrated}).`,
+      targetUserId: authenticatedUserId,
+    });
     saveDb(state);
     console.log(
       `[Auth Migration] Migrated guest ${guestId} -> ${authenticatedUserId} (Resumes: ${resumesMigrated}, Scans: ${scansMigrated}, Apps: ${applicationsMigrated})`

@@ -14,9 +14,11 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio environment to prevent websocket disconnect issues in iframe
-      hmr: false,
-      watch: null,
+      // HMR is enabled so local development gets fast feedback. It was disabled
+      // for an AI Studio iframe deployment, which made the dev server watch
+      // nothing and forced a manual restart after every edit.
+      port: Number(process.env.VITE_PORT) || 5173,
+      strictPort: false,
     },
     build: {
       chunkSizeWarningLimit: 2000,

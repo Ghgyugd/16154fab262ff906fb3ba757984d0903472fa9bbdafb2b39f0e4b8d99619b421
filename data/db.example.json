@@ -1,0 +1,130 @@
+{
+  "users": {},
+  "resumes": {},
+  "jobScans": {},
+  "applications": {},
+  "llmConfigs": {
+    "llm_groq_llama70b": {
+      "id": "llm_groq_llama70b",
+      "name": "Groq Llama-3.3-70b Versatile",
+      "provider": "groq",
+      "modelId": "llama-3.3-70b-versatile",
+      "apiKeyEnv": "GROQ_API_KEY",
+      "contextWindow": "128k",
+      "latencyTier": "sub-second",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_gemini_25_flash": {
+      "id": "llm_gemini_25_flash",
+      "name": "Google Gemini 2.5 Flash",
+      "provider": "gemini",
+      "modelId": "gemini-2.5-flash",
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "contextWindow": "1M",
+      "latencyTier": "sub-second",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_gemini_15_pro": {
+      "id": "llm_gemini_15_pro",
+      "name": "Google Gemini 1.5 Pro",
+      "provider": "gemini",
+      "modelId": "gemini-1.5-pro",
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "contextWindow": "2M",
+      "latencyTier": "deep-reasoning",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_openai_gpt4o": {
+      "id": "llm_openai_gpt4o",
+      "name": "OpenAI GPT-4o",
+      "provider": "openai",
+      "modelId": "gpt-4o",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "contextWindow": "128k",
+      "latencyTier": "standard",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_anthropic_claude35": {
+      "id": "llm_anthropic_claude35",
+      "name": "Anthropic Claude 3.5 Sonnet",
+      "provider": "anthropic",
+      "modelId": "claude-3-5-sonnet-20241022",
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "contextWindow": "200k",
+      "latencyTier": "deep-reasoning",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_deepseek_v3": {
+      "id": "llm_deepseek_v3",
+      "name": "DeepSeek V3 Chat / Reasoner",
+      "provider": "custom",
+      "modelId": "deepseek-chat",
+      "apiKeyEnv": "DEEPSEEK_API_KEY",
+      "contextWindow": "64k",
+      "latencyTier": "standard",
+      "enabled": true,
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    },
+    "llm_a6f86cbe": {
+      "name": "Llama 3.1 8B Instant",
+      "provider": "groq",
+      "modelId": "llama-3.1-8b-instant",
+      "contextWindow": "128k",
+      "latencyTier": "sub-second",
+      "apiKeyEnv": "API_KEY",
+      "enabled": true,
+      "id": "llm_a6f86cbe",
+      "createdAt": "2026-10-01T03:41:24.841Z"
+    }
+  },
+  "taskBindings": {
+    "score": {
+      "task": "score",
+      "taskLabel": "ATS Match Calibration & Skill Delta Scoring",
+      "primaryModelId": "llm_a6f86cbe",
+      "fallbackModelId": "llm_gemini_25_flash"
+    },
+    "tailor": {
+      "task": "tailor",
+      "taskLabel": "Targeted Resume Alignment & Recruiter Rubrics",
+      "primaryModelId": "llm_gemini_15_pro",
+      "fallbackModelId": "llm_groq_llama70b"
+    },
+    "cover_letter": {
+      "task": "cover_letter",
+      "taskLabel": "Executive Cover Letter Synthesis",
+      "primaryModelId": "llm_gemini_25_flash",
+      "fallbackModelId": "llm_openai_gpt4o"
+    },
+    "star_bullet": {
+      "task": "star_bullet",
+      "taskLabel": "STAR Metric & Impact Statement Suggestions",
+      "primaryModelId": "llm_groq_llama70b",
+      "fallbackModelId": "llm_gemini_25_flash"
+    },
+    "resume_parse": {
+      "task": "resume_parse",
+      "taskLabel": "Resume Entity & Work History Parsing",
+      "primaryModelId": "llm_gemini_25_flash",
+      "fallbackModelId": "llm_groq_llama70b"
+    }
+  },
+  "systemSettings": {
+    "promptInjectionShield": true,
+    "maxUploadSizeMb": 5,
+    "freeTierMonthlyLimit": 3,
+    "proPriceInr": 249,
+    "rateLimitWindowDays": 30,
+    "maintenanceMode": false,
+    "allowedFileExtensions": [
+      ".pdf",
+      ".docx"
+    ]
+  },
+  "securityLogs": []
+}
