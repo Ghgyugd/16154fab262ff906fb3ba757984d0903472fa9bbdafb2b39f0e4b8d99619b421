@@ -1,0 +1,8 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # False positives: these are plain config values (model ids / provider names)
+  # that legitimately appear throughout the source and lockfiles.
+  SECRETS_SCAN_OMIT_KEYS = "AI_PROVIDER,SCORE_MODEL,TAILOR_MODEL"

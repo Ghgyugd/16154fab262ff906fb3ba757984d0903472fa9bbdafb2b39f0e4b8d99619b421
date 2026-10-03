@@ -17,4 +17,5 @@ uploads/
 # Local secret scratch files (API keys pasted for local development).
 locals.txt
 *.local.txt
+keys
 secrets.txt
