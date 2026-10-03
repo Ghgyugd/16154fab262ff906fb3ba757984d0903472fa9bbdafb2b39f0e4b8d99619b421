@@ -62,7 +62,7 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
       <div className="absolute top-0 right-6 z-20 pointer-events-none hidden sm:block">
         <span className="font-cursive text-sm text-[#1D4ED8] bg-white/95 backdrop-blur-md px-3.5 py-1 rounded-full border border-blue-200/90 shadow-md font-bold inline-flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-          <span>ATS parser approved</span>
+          <span>Resume analysis preview</span>
         </span>
       </div>
 
@@ -77,7 +77,7 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]/80 inline-block" />
               <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]/80 inline-block" />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]/80 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#1D4ED8]/80 inline-block" />
             </div>
             <span className="text-[11px] font-mono font-bold tracking-tight text-[#0B2545] ml-2">
               resume_matcher_v4.docx
@@ -85,9 +85,9 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              ATS Compliant
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              Resume Preview
             </span>
           </div>
         </div>
@@ -151,8 +151,8 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
 
               <div className="pt-2.5 mt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-[#627D98]">
                 <span>Format: Single Column</span>
-                <span className="text-emerald-700 font-bold flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 inline" /> 0 OCR Traps
+                <span className="text-blue-700 font-bold flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 inline" /> Text extraction
                 </span>
               </div>
             </div>
@@ -182,13 +182,13 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
                   ].map((item) => (
                     <div
                       key={item.text}
-                      className="flex items-center justify-between text-[11px] p-2 rounded-xl bg-emerald-50/80 border border-emerald-200 shadow-2xs"
+                      className="flex items-center justify-between text-[11px] p-2 rounded-xl bg-blue-50/80 border border-blue-200 shadow-2xs"
                     >
-                      <span className="text-emerald-950 font-semibold flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span className="text-blue-950 font-semibold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         {item.text}
                       </span>
-                      <span className="font-mono font-bold text-emerald-700">{item.match}</span>
+                      <span className="font-mono font-bold text-blue-700">{item.match}</span>
                     </div>
                   ))}
 
@@ -225,8 +225,8 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
                     <span className="text-xs sm:text-sm font-bold text-white tracking-tight">
                       Target ATS Calibration
                     </span>
-                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-semibold shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/40 font-semibold shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
                       Ready to Apply
                     </span>
                   </div>

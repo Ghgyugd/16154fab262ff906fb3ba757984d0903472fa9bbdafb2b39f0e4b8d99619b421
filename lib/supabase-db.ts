@@ -287,9 +287,6 @@ export const supabaseDb = {
     const scansByRole: Record<string, number> = {};
     for (const scan of scans) scansByRole[scan.jobTitle || 'General Engineering'] = (scansByRole[scan.jobTitle || 'General Engineering'] || 0) + 1;
     const totalTimeSpentSeconds = users.reduce((total, user) => total + (user.totalTimeSpentSeconds || 0), 0);
-    const tailoredCount = scans.filter((scan) => scan.tailoredResumeText).length;
-    const groqTokens = scans.length * 1850;
-    const geminiTokens = tailoredCount * 3400;
     return {
       totalUsers: users.length,
       activeProMembers: pro,
@@ -306,10 +303,10 @@ export const supabaseDb = {
       scansByRole,
       applicationsByStatus,
       llmMetrics: {
-        groqTokens,
-        geminiTokens,
-        totalTokens: groqTokens + geminiTokens,
-        estimatedCostUsd: ((groqTokens / 1_000_000) * 0.59 + (geminiTokens / 1_000_000) * 0.35).toFixed(4),
+        groqTokens: null,
+        geminiTokens: null,
+        totalTokens: null,
+        estimatedCostUsd: 'Not measured',
       },
     };
   },

@@ -178,19 +178,19 @@ Plan: ₹${PRO_PRICE_INR} / Month Unlimited Scans`,
                 {/* Feature Checklist */}
                 <div className="space-y-3 mb-6 text-xs sm:text-sm text-[#0B2545]">
                   <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                     <span className="font-medium">Unlimited match-score evaluations</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                     <span className="font-medium">Tailored resume rewritten from your own experience</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                     <span className="font-medium">Downloadable Microsoft Word (.docx) files</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                     <span className="font-medium">Custom cover letters aligned to each job description</span>
                   </div>
                 </div>
@@ -210,7 +210,7 @@ Plan: ₹${PRO_PRICE_INR} / Month Unlimited Scans`,
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-2 text-[11px] text-[#627D98] text-center">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2} />
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" strokeWidth={2} />
                   <span>Manual activation via the admin channel</span>
                 </div>
               </div>

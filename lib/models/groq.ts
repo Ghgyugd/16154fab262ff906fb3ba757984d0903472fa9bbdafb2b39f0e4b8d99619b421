@@ -104,7 +104,7 @@ export class GroqAdapter {
         }
       }
       throw new Error(
-        `Groq returned content that is not valid JSON: ${cleaned.slice(0, 200)}`
+        'Groq returned content that is not valid JSON.'
       );
     }
   }

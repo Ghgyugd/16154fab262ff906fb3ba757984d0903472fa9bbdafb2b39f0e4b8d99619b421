@@ -79,7 +79,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
       role: 'Staff Infrastructure Engineer',
       matchScore: 96,
       status: 'Tech Screen',
-      statusClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      statusClass: 'bg-blue-50 text-blue-700 border-blue-200',
       isOffer: false,
     },
     {
@@ -95,7 +95,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
       role: 'Senior Backend',
       matchScore: 91,
       status: 'Offer ($185k)',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+      statusClass: 'bg-blue-100 text-blue-800 border-blue-300 font-bold',
       isOffer: true,
     },
   ];
@@ -155,7 +155,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                   <span className="text-[11px] text-[#627D98]">Match:</span>
                   <span
                     className={`text-xl font-black tabular-nums ${
-                      currentScore >= 80 ? 'text-emerald-700' : 'text-[#1D4ED8]'
+                      currentScore >= 80 ? 'text-blue-700' : 'text-[#1D4ED8]'
                     }`}
                   >
                     {currentScore}%
@@ -178,7 +178,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                       }`}
                     >
                       {isPresent ? (
-                        <Check className="w-3 h-3 text-emerald-400" />
+                        <Check className="w-3 h-3 text-blue-400" />
                       ) : (
                         <AlertTriangle className="w-3 h-3 text-amber-500" />
                       )}
@@ -193,10 +193,10 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
               <div className="p-3.5 rounded-2xl bg-white/70 border border-[#8DA9C4]/30 space-y-2 shadow-inner">
                 <div className="flex items-center justify-between text-[11px] font-medium">
                   <span className="text-[#0B2545] flex items-center gap-1.5 font-bold">
-                    <HugeiconsIcon icon={Shield01Icon} size={14} className="text-emerald-600" />
+                    <HugeiconsIcon icon={Shield01Icon} size={14} className="text-blue-600" />
                     ATS Pass Probability
                   </span>
-                  <span className="font-mono font-bold text-emerald-700">
+                  <span className="font-mono font-bold text-blue-700">
                     {currentScore >= 80 ? '98.2% High Priority' : 'Moderate Priority'}
                   </span>
                 </div>
@@ -204,7 +204,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
                       currentScore >= 80
-                        ? 'bg-gradient-to-r from-emerald-600 to-emerald-400'
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-400'
                         : 'bg-gradient-to-r from-[#1D4ED8] to-[#60A5FA]'
                     }`}
                     style={{ width: `${currentScore}%` }}
@@ -276,7 +276,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                   <span>{bulletMode === 'raw' ? 'Uncalibrated' : 'Google STAR Formula'}</span>
                   <span
                     className={`font-bold ${
-                      bulletMode === 'raw' ? 'text-amber-600' : 'text-emerald-700'
+                      bulletMode === 'raw' ? 'text-amber-600' : 'text-blue-700'
                     }`}
                   >
                     {bulletMode === 'raw' ? 'Vague Metric' : '+38% Latency Gain'}
@@ -293,7 +293,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
               {/* Visual badges */}
               <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold text-[#0B2545]">
                 <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                   <span>STAR Verified</span>
                 </div>
                 <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80 flex items-center gap-1.5">
@@ -305,7 +305,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
 
             <div className="pt-4 mt-5 border-t border-slate-100/80 flex items-center justify-between text-xs text-[#627D98]">
               <span>Single-column format</span>
-              <span className="font-bold text-emerald-700 flex items-center gap-1">
+              <span className="font-bold text-blue-700 flex items-center gap-1">
                 <Download className="w-3.5 h-3.5" /> Word .docx Ready
               </span>
             </div>
@@ -363,8 +363,8 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 text-[10px] text-emerald-800 font-semibold bg-emerald-50/80 p-2 rounded-xl border border-emerald-200">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} className="text-emerald-600 shrink-0" />
+              <div className="flex items-center gap-2 text-[10px] text-blue-800 font-semibold bg-blue-50/80 p-2 rounded-xl border border-blue-200">
+                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} className="text-blue-600 shrink-0" />
                 <span>Synchronized with resume bullet metrics</span>
               </div>
             </div>

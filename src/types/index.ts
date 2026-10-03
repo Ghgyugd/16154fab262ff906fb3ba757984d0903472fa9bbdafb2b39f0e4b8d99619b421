@@ -81,9 +81,9 @@ export interface AdminAnalytics {
   scansByRole: Record<string, number>;
   applicationsByStatus: Record<string, number>;
   llmMetrics: {
-    groqTokens: number;
-    geminiTokens: number;
-    totalTokens: number;
+    groqTokens: number | null;
+    geminiTokens: number | null;
+    totalTokens: number | null;
     estimatedCostUsd: string;
   };
 }
@@ -110,6 +110,8 @@ export interface TailoredResult {
   cover_letter_text: string;
   key_changes_made?: string[];
   improved_match_score?: number;
+  synthetic?: boolean;
+  notice?: string;
 }
 
 export interface ApplicationTrackerItem {

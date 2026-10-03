@@ -80,10 +80,8 @@ export async function extractResumeText(
       }
     }
   } catch (err: any) {
-    console.error('[Parser] File extraction error:', err);
-    throw new Error(
-      `Failed to parse ${filename}: ${err?.message || 'Unsupported format'}. Please upload a standard PDF or DOCX file.`
-    );
+    console.error('[Parser] File extraction failed:', err instanceof Error ? err.name : 'unknown error');
+    throw new Error('Unsupported or unreadable resume file. Please upload a standard PDF or DOCX file.');
   } finally {
     // 100% Data Privacy: Immediately purge raw temp file from disk if present
     if (tempFilePath) {

@@ -104,8 +104,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* What the product actually returns — no unverifiable success statistics */}
               <div className="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-white/80 shadow-[0_4px_16px_rgba(11,37,69,0.04),inset_0_1px_0_rgba(255,255,255,0.95)] max-w-xl">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200/70 shadow-2xs">
-                    <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-200/70 shadow-2xs">
+                    <Check className="w-4 h-4 text-blue-600 stroke-[2.5]" />
                   </div>
                   <div>
                     <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">0–100</span>
@@ -196,16 +196,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-[11px]">
                       <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                         <span className="font-bold text-[#1D4ED8]">Output: Score + Keyword Gaps</span>
                       </div>
-                      <span className="font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[10px] shadow-2xs">
+                      <span className="font-mono font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full text-[10px] shadow-2xs">
                         0–100 Match
                       </span>
                     </div>
                     <div className="h-3 w-full rounded-full bg-blue-100/80 overflow-hidden p-0.5 shadow-inner">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-emerald-500 transition-all duration-1000 shadow-sm"
+                        className="h-full rounded-full bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-blue-500 transition-all duration-1000 shadow-sm"
                         style={{ width: '100%' }}
                       />
                     </div>
@@ -215,7 +215,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {/* Plain language reassurance points */}
                 <div className="flex flex-wrap items-center justify-between gap-y-1.5 gap-x-2 text-[11px] text-[#627D98] pt-2 border-t border-slate-200/60">
                   <span className="flex items-center gap-1.5 font-bold text-[#0B2545] whitespace-nowrap">
-                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> {FREE_SCAN_LIMIT} free scans / month
+                    <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" /> {FREE_SCAN_LIMIT} free scans / month
                   </span>
                   <span className="text-slate-300 hidden sm:inline">·</span>
                   <span className="font-medium whitespace-nowrap">Single-column Word</span>
@@ -298,7 +298,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 className="p-7 sm:p-8 rounded-3xl bg-white/55 backdrop-blur-xl border border-white/80 shadow-[0_12px_32px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] space-y-3"
               >
                 <div className="flex items-center gap-2">
-                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600" />
+                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600" />
                   <h3 className="text-base font-bold text-[#0B2545]">{item.title}</h3>
                 </div>
                 <p className="text-xs sm:text-sm text-[#334E68] leading-relaxed">{item.body}</p>
@@ -348,23 +348,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                 <div className="pt-5 border-t border-slate-100/80 space-y-3.5 text-xs sm:text-sm text-[#0B2545]">
                   <div className="flex items-center gap-2.5">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
                     <span>{FREE_SCAN_LIMIT} job match analyses each month</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
                     <span>0–100 ATS compatibility rating</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
                     <span>Missing keyword diagnostic report</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
                     <span>Single-column ATS format preview</span>
                   </div>
                   <div className="flex items-center gap-2.5 text-[#627D98]">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
                     <span>Encrypted at rest, delete your data on request</span>
                   </div>
                 </div>

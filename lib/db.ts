@@ -92,9 +92,9 @@ export interface AdminAnalytics {
   scansByRole: Record<string, number>;
   applicationsByStatus: Record<string, number>;
   llmMetrics: {
-    groqTokens: number;
-    geminiTokens: number;
-    totalTokens: number;
+    groqTokens: number | null;
+    geminiTokens: number | null;
+    totalTokens: number | null;
     estimatedCostUsd: string;
   };
 }
@@ -817,7 +817,7 @@ export const db = {
       const sum = jobScans.reduce((acc, s) => acc + (s.matchScore || 0), 0);
       avgScore = Math.round(sum / totalScans);
     } else {
-      avgScore = 82; // Baseline default
+      avgScore = 0;
     }
 
     // Real total time spent
@@ -849,15 +849,6 @@ export const db = {
     }
 
     // Real token estimates
-    const estimatedGroqTokens = totalScans * 1850;
-    const tailoredScans = jobScans.filter((s) => s.tailoredResumeText).length;
-    const estimatedGeminiTokens = Math.max(tailoredScans * 3400, 4800);
-    const totalTokens = estimatedGroqTokens + estimatedGeminiTokens;
-    const estimatedCostUsd = (
-      (estimatedGroqTokens / 1_000_000) * 0.59 +
-      (estimatedGeminiTokens / 1_000_000) * 0.35
-    ).toFixed(4);
-
     return {
       totalUsers: users.length,
       activeProMembers: proUsers,
@@ -874,10 +865,10 @@ export const db = {
       scansByRole,
       applicationsByStatus,
       llmMetrics: {
-        groqTokens: estimatedGroqTokens,
-        geminiTokens: estimatedGeminiTokens,
-        totalTokens,
-        estimatedCostUsd,
+        groqTokens: null,
+        geminiTokens: null,
+        totalTokens: null,
+        estimatedCostUsd: 'Not measured',
       },
     };
   },

@@ -152,8 +152,8 @@ export const AtsPipelineDiagram: React.FC = () => {
               </p>
             </div>
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium self-start sm:self-auto">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-800 font-medium self-start sm:self-auto">
+              <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
               <span>Verified Single-Column Layout</span>
             </div>
           </div>
@@ -184,8 +184,8 @@ export const AtsPipelineDiagram: React.FC = () => {
             </div>
 
             {/* Output Box */}
-            <div className="md:col-span-5 p-4 rounded-xl bg-emerald-50/40 border border-emerald-200 space-y-1.5">
-              <span className="text-[11px] font-medium text-emerald-700 uppercase tracking-wide block">
+            <div className="md:col-span-5 p-4 rounded-xl bg-blue-50/40 border border-blue-200 space-y-1.5">
+              <span className="text-[11px] font-medium text-blue-700 uppercase tracking-wide block">
                 Output Deliverable
               </span>
               <p className="text-xs font-semibold text-slate-900">
@@ -206,7 +206,7 @@ export const AtsPipelineDiagram: React.FC = () => {
                   key={i}
                   className="inline-flex items-center gap-1.5 text-xs text-slate-700 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200"
                 >
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <Check className="w-3.5 h-3.5 text-blue-600" />
                   <span>{h}</span>
                 </span>
               ))}

@@ -59,6 +59,9 @@ interface LLMConfig {
   contextWindow: string;
   latencyTier: 'sub-second' | 'standard' | 'deep-reasoning';
   enabled: boolean;
+  supported?: boolean;
+  configured?: boolean;
+  usedBy?: string[];
   createdAt: string;
 }
 
@@ -119,9 +122,9 @@ interface AdminStats {
   scansByRole: Record<string, number>;
   applicationsByStatus: Record<string, number>;
   llmMetrics: {
-    groqTokens: number;
-    geminiTokens: number;
-    totalTokens: number;
+    groqTokens: number | null;
+    geminiTokens: number | null;
+    totalTokens: number | null;
     estimatedCostUsd: string;
   };
 }
@@ -178,18 +181,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
   const [showAddLLMModal, setShowAddLLMModal] = useState(false);
   const [newLLMData, setNewLLMData] = useState<{
     name: string;
-    provider: 'groq' | 'gemini' | 'openai' | 'anthropic' | 'custom';
+    provider: 'groq' | 'gemini' | 'openai' | 'anthropic';
     modelId: string;
     contextWindow: string;
     latencyTier: 'sub-second' | 'standard' | 'deep-reasoning';
-    apiKeyEnv: string;
   }>({
     name: '',
     provider: 'groq',
     modelId: '',
     contextWindow: '128k',
     latencyTier: 'standard',
-    apiKeyEnv: 'API_KEY',
   });
 
   // Privileges are decided by the server from the signed session cookie, never
@@ -533,7 +534,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           modelId: '',
           contextWindow: '128k',
           latencyTier: 'standard',
-          apiKeyEnv: 'API_KEY',
         });
         showToast(`New LLM registered: ${data.llm.name}`);
       }
@@ -680,7 +680,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-[#0B2545] border border-slate-300 shadow-2xs flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#1D4ED8]" />
-              <span>Owner Access Verified</span>
+                <span>Admin Session</span>
             </span>
           </div>
           <p className="text-xs sm:text-sm text-[#334E68] mt-1">
@@ -812,19 +812,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </div>
             </div>
 
-            {/* Card 2: Projected Pro MRR */}
+            {/* Card 2: Pro accounts */}
             <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
               <div className="flex items-center justify-between text-[#627D98]">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Monthly Run Rate</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider">Pro Accounts</span>
                 <CreditCard className="w-4 h-4 text-[#1D4ED8]" />
               </div>
               <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
-                {stats
-                  ? `₹${((stats.activeProMembers || 0) * (settings?.proPriceInr ?? PRO_PRICE_INR)).toLocaleString()}`
-                  : 'Not available'}
+                {stats ? stats.activeProMembers : 'Not available'}
               </div>
               <div className="text-[11px] text-[#627D98]">
-                ₹{settings?.proPriceInr ?? PRO_PRICE_INR}/mo per Pro subscriber
+                Manually activated; payment revenue is not tracked
               </div>
             </div>
 
@@ -844,10 +842,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </div>
             </div>
 
-            {/* Card 4: Average ATS Match Score */}
+            {/* Card 4: Average keyword overlap */}
             <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
               <div className="flex items-center justify-between text-[#627D98]">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Avg ATS Match</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider">Avg Keyword Match</span>
                 <Zap className="w-4 h-4 text-[#1D4ED8]" />
               </div>
               <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
@@ -916,29 +914,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             <div className="glass-panel p-5 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#0B2545]">
-                  AI Inference & Costs
+                  Estimated AI Usage
                 </span>
-                <span className="text-[11px] font-mono text-[#1D4ED8]">
-                  {stats ? `$${stats.llmMetrics.estimatedCostUsd}` : 'Not available'}
-                </span>
+                  <span className="text-[11px] font-mono text-[#627D98]">Not instrumented</span>
               </div>
+                <p className="text-[10px] text-[#627D98]">
+                  Provider token and cost telemetry is not connected.
+                </p>
               <div className="space-y-2 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-[#627D98]">Total Tokens</span>
                   <span className="font-mono font-bold text-[#0B2545]">
-                    {stats ? `${(stats.llmMetrics.totalTokens / 1000).toFixed(1)}k` : 'Not available'}
+                    Not instrumented
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[#627D98]">Groq Tokens (Llama 70B)</span>
+                  <span className="text-[#627D98]">Estimated Groq tokens</span>
                   <span className="font-mono text-[#334E68]">
-                    {stats ? `${(stats.llmMetrics.groqTokens / 1000).toFixed(1)}k` : 'Not available'}
+                    Not instrumented
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[#627D98]">Gemini Tokens (GenAI)</span>
+                  <span className="text-[#627D98]">Estimated Gemini tokens</span>
                   <span className="font-mono text-[#334E68]">
-                    {stats ? `${(stats.llmMetrics.geminiTokens / 1000).toFixed(1)}k` : 'Not available'}
+                    Not instrumented
                   </span>
                 </div>
               </div>
@@ -1181,10 +1180,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold font-['Space_Grotesk'] text-[#0B2545]">
-                LLM Registry & Dynamic Task Bindings
+                LLM Registry & Runtime Task Bindings
               </h2>
               <p className="text-xs text-[#627D98]">
-                Add new LLMs, configure providers, and dynamically bind tasks (ATS scoring, tailoring, cover letter) to any model.
+                Bind supported models to tasks. A server-side provider key is required before a model can run.
               </p>
             </div>
 
@@ -1227,11 +1226,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                         onChange={(e) => handleSaveBinding(taskKey, e.target.value, binding.fallbackModelId)}
                         className="w-full p-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-[#0B2545]"
                       >
-                        {llms.map((model) => (
+                        {llms.filter((model) => model.enabled && model.configured && model.supported).map((model) => (
                           <option key={model.id} value={model.id}>
                             {model.name}
                           </option>
                         ))}
+                        {!llms.some((model) => model.id === binding.primaryModelId && model.enabled && model.configured && model.supported) && (
+                          <option value={binding.primaryModelId}>
+                            {llms.find((model) => model.id === binding.primaryModelId)?.name || binding.primaryModelId} (unavailable)
+                          </option>
+                        )}
                       </select>
                     </div>
 
@@ -1244,11 +1248,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                         onChange={(e) => handleSaveBinding(taskKey, binding.primaryModelId, e.target.value)}
                         className="w-full p-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-[#0B2545]"
                       >
-                        {llms.map((model) => (
+                        {llms.filter((model) => model.enabled && model.configured && model.supported).map((model) => (
                           <option key={model.id} value={model.id}>
                             {model.name}
                           </option>
                         ))}
+                        {!llms.some((model) => model.id === binding.fallbackModelId && model.enabled && model.configured && model.supported) && (
+                          <option value={binding.fallbackModelId}>
+                            {llms.find((model) => model.id === binding.fallbackModelId)?.name || binding.fallbackModelId} (unavailable)
+                          </option>
+                        )}
                       </select>
                     </div>
                   </div>
@@ -1260,7 +1269,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           {/* Configured Models Table */}
           <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-[#0B2545]">
-              Active LLM Providers ({llms.length})
+              Model Registry ({llms.length})
             </h3>
 
             <div className="overflow-x-auto">
@@ -1272,7 +1281,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                     <th className="py-2.5 px-3">Model Identifier</th>
                     <th className="py-2.5 px-3">Context</th>
                     <th className="py-2.5 px-3">Latency Tier</th>
-                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3">Runtime Use</th>
+                    <th className="py-2.5 px-3">Availability</th>
                     <th className="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -1288,15 +1298,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                           {m.latencyTier}
                         </span>
                       </td>
+                      <td className="py-3 px-3 text-[#334E68]">
+                        {m.usedBy?.length ? m.usedBy.join(', ') : 'Not bound'}
+                      </td>
                       <td className="py-3 px-3">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            m.enabled
-                              ? 'bg-blue-50 text-[#1D4ED8] border border-blue-200'
-                              : 'bg-slate-100 text-[#627D98]'
-                          }`}
-                        >
-                          {m.enabled ? 'Enabled' : 'Disabled'}
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-[#334E68] border border-slate-200">
+                          {!m.supported ? 'Unsupported provider' : !m.enabled ? 'Disabled' : m.configured ? 'Key configured' : 'Missing server key'}
                         </span>
                       </td>
                       <td className="py-3 px-3 text-right">
@@ -1385,7 +1392,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   Security Audit Events Log ({securityLogs.length})
                 </h3>
               </div>
-              <span className="text-[11px] text-[#627D98]">Real-time Telemetry</span>
+              <span className="text-[11px] text-[#627D98]">Recorded events</span>
             </div>
 
             <div className="overflow-x-auto">
@@ -1796,7 +1803,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                     <option value="gemini">Google Gemini</option>
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
-                    <option value="custom">Custom / Ollama</option>
                   </select>
                 </div>
 
@@ -1839,16 +1845,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-[#334E68] block mb-1">API Key Env Variable</label>
-                <input
-                  type="text"
-                  placeholder="e.g., GROQ_API_KEY or CUSTOM_API_KEY"
-                  value={newLLMData.apiKeyEnv}
-                  onChange={(e) => setNewLLMData({ ...newLLMData, apiKeyEnv: e.target.value })}
-                  className="w-full p-2 rounded-xl border border-slate-200 font-mono text-xs"
-                />
-              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

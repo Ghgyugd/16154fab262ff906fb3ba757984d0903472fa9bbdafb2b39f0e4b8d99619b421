@@ -50,10 +50,8 @@ export class OpenAIAdapter {
     }
 
     if (!response.ok) {
-      // Upstream error bodies can echo the submitted resume, so log only a prefix.
-      const errorText = (await response.text()).slice(0, 200);
-      console.error(`[OpenAI Adapter] HTTP ${response.status}: ${errorText}`);
-      throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+      await response.body?.cancel();
+      throw new Error(`OpenAI-compatible API error (${response.status}).`);
     }
 
     const data = await response.json();

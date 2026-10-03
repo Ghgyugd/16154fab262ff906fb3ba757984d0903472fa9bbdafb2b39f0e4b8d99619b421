@@ -26,7 +26,7 @@ export const ScoreGauge: React.FC<ScoreGaugeProps> = ({
 
   if (normalizedScore >= 75) {
     strokeColor = '#1D4ED8';
-    badgeText = 'Strong ATS Match';
+    badgeText = 'Strong keyword match';
     badgeClass = 'text-[#1D4ED8] bg-blue-50 border-blue-200';
     Icon = CheckCircle2;
   } else if (normalizedScore >= 50) {

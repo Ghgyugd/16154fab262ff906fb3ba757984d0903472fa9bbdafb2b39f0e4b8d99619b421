@@ -170,14 +170,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 !isPro ? 'cursor-pointer hover:shadow-xs' : ''
               } ${
                 isPro
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  ? 'bg-blue-50 text-blue-800 border-blue-200'
                   : 'bg-blue-50/90 text-[#0B2545] border-blue-200/80'
               }`}
               title={isPro ? 'Pro Active' : 'Click to upgrade'}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  isPro ? 'bg-emerald-500 animate-pulse' : 'bg-[#1D4ED8]'
+                  isPro ? 'bg-blue-500 animate-pulse' : 'bg-[#1D4ED8]'
                 }`}
               />
               <span className="whitespace-nowrap">
@@ -262,7 +262,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="text-xs font-bold text-[#0B2545] flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
                         <span
                           className={`w-2 h-2 rounded-full ${
-                            isPro ? 'bg-emerald-500 animate-pulse' : 'bg-[#1D4ED8]'
+                            isPro ? 'bg-blue-500 animate-pulse' : 'bg-[#1D4ED8]'
                           }`}
                         />
                         {isPro ? 'Pro Member' : `Free Tier (${creditsRemaining}/${FREE_SCAN_LIMIT} Scans)`}
@@ -386,12 +386,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                       !isPro ? 'cursor-pointer hover:shadow-xs' : ''
                     } ${
                       isPro
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        ? 'bg-blue-50 text-blue-800 border-blue-200'
                         : 'bg-blue-50/90 text-[#0B2545] border-blue-200/80'
                     }`}
                   >
                     <span
-                      className={`w-1.5 h-1.5 rounded-full ${isPro ? 'bg-emerald-500' : 'bg-[#1D4ED8]'}`}
+                      className={`w-1.5 h-1.5 rounded-full ${isPro ? 'bg-blue-500' : 'bg-[#1D4ED8]'}`}
                     />
                     <span className="whitespace-nowrap">
                       {isPro ? 'Pro Active' : `Free Tier • ${creditsRemaining}/${FREE_SCAN_LIMIT} Scans`}

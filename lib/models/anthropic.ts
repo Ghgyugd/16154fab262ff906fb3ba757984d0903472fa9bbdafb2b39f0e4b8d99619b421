@@ -47,8 +47,8 @@ export class AnthropicAdapter {
     }
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Anthropic API error (${response.status}): ${errorText}`);
+      await response.body?.cancel();
+      throw new Error(`Anthropic API error (${response.status}).`);
     }
 
     const data = await response.json();

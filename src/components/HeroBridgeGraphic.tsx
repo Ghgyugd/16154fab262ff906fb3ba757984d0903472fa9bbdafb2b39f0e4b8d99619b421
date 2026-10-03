@@ -51,7 +51,7 @@ export const HeroBridgeGraphic: React.FC<HeroBridgeGraphicProps> = ({ className 
                 <Target className="w-3 h-3 text-[#1D4ED8]" />
               </div>
               <span className="text-[11px] font-bold text-[#1D4ED8]">
-                Target Job <span className="font-mono text-emerald-700 text-[10px]">(94%)</span>
+                Target Job <span className="font-mono text-blue-700 text-[10px]">(94%)</span>
               </span>
             </div>
           </div>
@@ -121,7 +121,7 @@ export const HeroBridgeGraphic: React.FC<HeroBridgeGraphicProps> = ({ className 
                   <stop offset="0%" stopColor="#64748B" />
                   <stop offset="45%" stopColor="#1D4ED8" />
                   <stop offset="55%" stopColor="#2563EB" />
-                  <stop offset="100%" stopColor="#10B981" />
+                  <stop offset="100%" stopColor="#1D4ED8" />
                 </linearGradient>
               </defs>
             </svg>
@@ -133,8 +133,8 @@ export const HeroBridgeGraphic: React.FC<HeroBridgeGraphicProps> = ({ className 
             <span className="font-cursive text-xs text-[#1D4ED8] font-bold">
               STAR Method Calibrated
             </span>
-            <span className="font-semibold text-emerald-700 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3 text-emerald-600 inline" /> 0 OCR Traps
+            <span className="font-semibold text-blue-700 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-blue-600 inline" /> 0 OCR Traps
             </span>
           </div>
         </div>

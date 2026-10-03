@@ -175,33 +175,33 @@ export const BulletDiffExplorer: React.FC = () => {
             </div>
 
             {/* RIGHT: STAR Tailored Output */}
-            <div className="p-6 rounded-xl bg-gradient-to-br from-emerald-50/70 to-emerald-50/30 border border-emerald-200 space-y-4 shadow-[inset_0_2px_6px_rgba(5,150,105,0.04)]">
+            <div className="p-6 rounded-xl bg-gradient-to-br from-blue-50/70 to-blue-50/30 border border-blue-200 space-y-4 shadow-[inset_0_2px_6px_rgba(5,150,105,0.04)]">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-emerald-600" />
+                <span className="text-xs font-bold text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-blue-600" />
                   STAR Tailored & ATS Injected
                 </span>
-                <span className="text-[11px] font-mono text-emerald-700 bg-white px-2.5 py-0.5 rounded-full border border-emerald-200 font-bold shadow-2xs">
+                <span className="text-[11px] font-mono text-blue-700 bg-white px-2.5 py-0.5 rounded-full border border-blue-200 font-bold shadow-2xs">
                   +38% Screening Score
                 </span>
               </div>
 
-              <p className="text-xs sm:text-sm text-[#0B2545] font-mono leading-relaxed bg-white p-4 rounded-lg border border-emerald-100 shadow-xs font-medium">
+              <p className="text-xs sm:text-sm text-[#0B2545] font-mono leading-relaxed bg-white p-4 rounded-lg border border-blue-100 shadow-xs font-medium">
                 "{preset.tailored.bullet}"
               </p>
 
               <div className="space-y-2 text-xs">
-                <span className="font-bold text-emerald-900 block">Applied Architecture Formula:</span>
-                <p className="text-xs text-emerald-800 font-medium leading-relaxed">
+                <span className="font-bold text-blue-900 block">Applied Architecture Formula:</span>
+                <p className="text-xs text-blue-800 font-medium leading-relaxed">
                   {preset.tailored.methodology}
                 </p>
               </div>
 
               <div className="pt-2">
-                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block mb-1">
+                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block mb-1">
                   Verified Outcome:
                 </span>
-                <span className="inline-block px-3 py-1 rounded-lg text-xs font-bold bg-white text-emerald-800 border border-emerald-200 shadow-xs">
+                <span className="inline-block px-3 py-1 rounded-lg text-xs font-bold bg-white text-blue-800 border border-blue-200 shadow-xs">
                   {preset.tailored.quantifiableResult}
                 </span>
               </div>
@@ -233,8 +233,8 @@ export const BulletDiffExplorer: React.FC = () => {
             </div>
 
             {customRewritten && (
-              <div className="mt-4 p-4 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs sm:text-sm font-mono text-[#0B2545] shadow-xs flex items-start gap-2.5">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div className="mt-4 p-4 rounded-xl bg-blue-50/80 border border-blue-200 text-xs sm:text-sm font-mono text-[#0B2545] shadow-xs flex items-start gap-2.5">
+                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0 mt-0.5" />
                 <span className="leading-relaxed">{customRewritten}</span>
               </div>
             )}

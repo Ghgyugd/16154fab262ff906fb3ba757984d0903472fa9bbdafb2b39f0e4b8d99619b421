@@ -171,7 +171,7 @@ app.post('/api/auth/login', async (req: SessionRequest, res: Response) => {
 
     res.json({ success: true, user });
   } catch (err) {
-    console.error('[Clerk Auth] user sync failed:', err);
+    console.error('[Clerk Auth] user sync failed:', err instanceof Error ? err.name : 'unknown error');
     res.status(503).json({ success: false, error: 'Could not verify the Clerk account. Please retry.' });
   }
 });
@@ -323,10 +323,10 @@ app.post(
         textPreview: parseResult.text.slice(0, 300),
       });
     } catch (err: any) {
-      console.error('[Upload] Pipeline error:', err);
+      console.error('[Upload] Pipeline failed:', err instanceof Error ? err.name : 'unknown error');
       res.status(422).json({
         success: false,
-        error: err?.message || 'Failed to extract and store resume document.',
+        error: 'The resume could not be processed. Check the file format and try again.',
       });
     }
   }
@@ -536,10 +536,10 @@ app.post('/api/check', upload.single('resume'), async (req: SessionRequest, res:
       remainingScans: Math.max(0, quotaCheck.remainingScans - 1),
     });
   } catch (err: any) {
-    console.error('[Scan] Error executing check:', err);
+    console.error('[Scan] Processing failed:', err instanceof Error ? err.name : 'unknown error');
     res.status(500).json({
       success: false,
-      error: err?.message || 'Failed to process resume analysis.',
+      error: 'Resume analysis could not be completed. Please retry.',
     });
   }
 });
@@ -738,8 +738,8 @@ app.post('/api/tailor', async (req: SessionRequest, res: Response) => {
       tailored: tailorResult,
     });
   } catch (err: any) {
-    console.error('[Tailor] Error:', err);
-    res.status(500).json({ success: false, error: err?.message || 'Failed to tailor application.' });
+    console.error('[Tailor] Processing failed:', err instanceof Error ? err.name : 'unknown error');
+    res.status(500).json({ success: false, error: 'Tailoring could not be completed. Please retry.' });
   }
 });
 
@@ -953,7 +953,8 @@ app.post('/api/admin/ban-user', async (req: SessionRequest, res: Response) => {
     const updatedUser = await db.banUser(userId, Boolean(isBanned), banReason);
     res.json({ success: true, user: updatedUser });
   } catch (err: any) {
-    res.status(400).json({ success: false, error: err?.message || 'Failed to update ban status' });
+    console.error('[Admin] Ban update failed:', err instanceof Error ? err.name : 'unknown error');
+    res.status(400).json({ success: false, error: 'Could not update account status.' });
   }
 });
 
@@ -966,7 +967,8 @@ app.post('/api/admin/edit-user', async (req: SessionRequest, res: Response) => {
     const updatedUser = await db.editUser(userId, updates);
     res.json({ success: true, user: updatedUser });
   } catch (err: any) {
-    res.status(400).json({ success: false, error: err?.message || 'Failed to edit user' });
+    console.error('[Admin] User edit failed:', err instanceof Error ? err.name : 'unknown error');
+    res.status(400).json({ success: false, error: 'Could not update user profile.' });
   }
 });
 
@@ -982,14 +984,40 @@ app.post('/api/admin/delete-user', async (req: SessionRequest, res: Response) =>
 // LLM Configuration Management
 app.get('/api/admin/llms', async (req: SessionRequest, res: Response) => {
   if (!await requireAdmin(req, res)) return;
-  res.json({ success: true, llms: await db.getLLMConfigs() });
+  const [llms, bindings] = await Promise.all([db.getLLMConfigs(), db.getTaskBindings()]);
+  const providerKeyEnv: Record<string, string> = {
+    groq: 'GROQ_API_KEY',
+    gemini: 'GEMINI_API_KEY',
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+  };
+  res.json({
+    success: true,
+    llms: llms.map((llm) => ({
+      ...llm,
+      supported: Boolean(providerKeyEnv[llm.provider]),
+      configured: Boolean(providerKeyEnv[llm.provider] && process.env[providerKeyEnv[llm.provider]]),
+      usedBy: Object.values(bindings)
+        .filter((binding) => binding.primaryModelId === llm.id || binding.fallbackModelId === llm.id)
+        .map((binding) => binding.task),
+    })),
+  });
 });
 
 app.post('/api/admin/llms', async (req: SessionRequest, res: Response) => {
   if (!await requireAdmin(req, res)) return;
-  const { name, provider, modelId, contextWindow, latencyTier, apiKeyEnv } = req.body;
+  const { name, provider, modelId, contextWindow, latencyTier } = req.body;
+  const providerKeyEnv: Record<string, string> = {
+    groq: 'GROQ_API_KEY',
+    gemini: 'GEMINI_API_KEY',
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+  };
   if (!name || !provider || !modelId) {
     return res.status(400).json({ success: false, error: 'Name, provider, and modelId are required.' });
+  }
+  if (!providerKeyEnv[provider]) {
+    return res.status(400).json({ success: false, error: 'Unsupported model provider.' });
   }
   const newLLM = await db.addLLMConfig({
     name,
@@ -997,7 +1025,7 @@ app.post('/api/admin/llms', async (req: SessionRequest, res: Response) => {
     modelId,
     contextWindow: contextWindow || '128k',
     latencyTier: latencyTier || 'standard',
-    apiKeyEnv: apiKeyEnv || 'API_KEY',
+    apiKeyEnv: providerKeyEnv[provider],
     enabled: true,
   });
   res.json({ success: true, llm: newLLM });
@@ -1011,7 +1039,8 @@ app.put('/api/admin/llms/:id', async (req: SessionRequest, res: Response) => {
     const updated = await db.updateLLMConfig(id, updates);
     res.json({ success: true, llm: updated });
   } catch (err: any) {
-    res.status(404).json({ success: false, error: err?.message || 'LLM not found.' });
+    console.error('[Admin] Model registry update failed:', err instanceof Error ? err.name : 'unknown error');
+    res.status(404).json({ success: false, error: 'Model configuration could not be updated.' });
   }
 });
 
@@ -1067,10 +1096,35 @@ app.get('/api/admin/system-health', async (req: SessionRequest, res: Response) =
   const minutes = Math.floor((uptimeSeconds % 3600) / 60);
   const seconds = uptimeSeconds % 60;
 
+  const probe = async (name: string, run: () => Promise<void>) => {
+    const startedAt = performance.now();
+    try {
+      await run();
+      return { name, status: 'Available', latencyMs: Math.round(performance.now() - startedAt) };
+    } catch {
+      return { name, status: 'Unavailable', latencyMs: Math.round(performance.now() - startedAt) };
+    }
+  };
+  const [database, storage] = await Promise.all([
+    probe('Supabase Postgres', () => db.verifyConnection()),
+    probe('Private resume storage', () => storageService.verifyConfiguration()),
+  ]);
+  const configuredProviders = [
+    ['Groq', 'GROQ_API_KEY'],
+    ['Google Gemini', 'GEMINI_API_KEY'],
+    ['Anthropic', 'ANTHROPIC_API_KEY'],
+    ['OpenAI', 'OPENAI_API_KEY'],
+  ].map(([name, envName]) => ({
+    name,
+    status: process.env[envName] ? 'Key configured' : 'Missing key',
+    latencyMs: null,
+  }));
+  const services = [database, storage, ...configuredProviders];
+
   res.json({
     success: true,
     health: {
-      status: 'HEALTHY',
+      status: database.status === 'Available' && storage.status === 'Available' ? 'Available' : 'Degraded',
       uptime: `${hours}h ${minutes}m ${seconds}s`,
       uptimeSeconds,
       nodeVersion: process.version,
@@ -1079,13 +1133,7 @@ app.get('/api/admin/system-health', async (req: SessionRequest, res: Response) =
       heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
       heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024),
       pid: process.pid,
-      services: [
-        { name: 'Database / Vault Storage', status: 'ONLINE', latencyMs: 1 },
-        { name: 'Deterministic ATS Engine', status: 'ONLINE', latencyMs: 12 },
-        { name: 'Task Worker Queue', status: 'ONLINE', latencyMs: 4 },
-        { name: 'Groq Inference Gateway', status: 'ONLINE', latencyMs: 340 },
-        { name: 'Google Gemini GenAI SDK', status: 'ONLINE', latencyMs: 820 },
-      ],
+      services,
     },
   });
 });

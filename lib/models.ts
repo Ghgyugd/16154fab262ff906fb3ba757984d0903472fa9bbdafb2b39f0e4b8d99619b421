@@ -2,6 +2,8 @@ import { GeminiAdapter } from './models/gemini.js';
 import { GroqAdapter } from './models/groq.js';
 import { AnthropicAdapter } from './models/anthropic.js';
 import { OpenAIAdapter } from './models/openai.js';
+import { supabaseDb } from './supabase-db.js';
+import type { ModelRequestOptions } from './models/gemini.js';
 import {
   ScoreResultSchema,
   TailorResultSchema,
@@ -36,6 +38,18 @@ export interface ParseModelInput {
 
 export { type ScoreResult, type TailorResult, type ParseCandidate };
 
+interface ModelPipelineEntry {
+  adapter: ModelAdapter;
+  modelName: string;
+}
+
+interface ModelAdapter {
+  id: string;
+  name: string;
+  isAvailable(): boolean;
+  generateJson<T = any>(options: ModelRequestOptions): Promise<T>;
+}
+
 const groqAdapter = new GroqAdapter();
 const geminiAdapter = new GeminiAdapter();
 const anthropicAdapter = new AnthropicAdapter();
@@ -55,76 +69,76 @@ function normalizeScore(value: unknown, fallback: number): number {
 }
 
 /**
- * Resolves the primary and fallback adapters based on availability and task priority:
- * 1. Primary: Groq (llama-3.3-70b) for sub-second hard skill extraction & keyword deltas.
- * 2. Fallback / Deep Analysis: Google Gemini (@google/genai SDK) for deep alignment & cover letters.
+ * Resolve the live admin-selected primary/fallback model IDs. A configured
+ * model is usable only when its provider adapter has a server-side key.
  */
-export function getModelPipeline(task: ModelTask) {
+export async function getModelPipeline(task: ModelTask): Promise<ModelPipelineEntry[]> {
+  const adapters = new Map<string, ModelAdapter>([
+    ['groq', groqAdapter],
+    ['gemini', geminiAdapter],
+    ['anthropic', anthropicAdapter],
+    ['openai', openaiAdapter],
+  ] as const);
+  const configuredTask = task === 'parse' ? 'resume_parse' : task;
+
+  try {
+    const [bindings, configs] = await Promise.all([
+      supabaseDb.getTaskBindings(),
+      supabaseDb.getLLMConfigs(),
+    ]);
+    const binding = bindings[configuredTask];
+    const configById = new Map(configs.map((config) => [config.id, config]));
+    if (binding) {
+      const pipeline: ModelPipelineEntry[] = [];
+      for (const id of [binding.primaryModelId, binding.fallbackModelId]) {
+        const config = configById.get(id);
+        if (!config?.enabled) continue;
+        const adapter = adapters.get(config.provider);
+        if (!adapter || !adapter.isAvailable()) continue;
+        if (pipeline.some((entry) => entry.adapter.id === config.provider && entry.modelName === config.modelId)) continue;
+        pipeline.push({ adapter, modelName: config.modelId });
+      }
+      return pipeline;
+    }
+  } catch {
+    // A DB configuration read failure falls back to server defaults; it never
+    // changes which credentials or model configuration reach the browser.
+  }
+
   const preferred = (process.env.AI_PROVIDER || '').toLowerCase();
-
-  const byId: Record<string, () => boolean> = {
-    groq: () => groqAdapter.isAvailable(),
-    gemini: () => geminiAdapter.isAvailable(),
-    anthropic: () => anthropicAdapter.isAvailable(),
-    openai: () => openaiAdapter.isAvailable(),
-  };
-
-  // Task-appropriate ordering. 'score' is a cheap extraction task, so the
-  // sub-second model leads; 'tailor' needs deeper reasoning.
-  const order =
-    task === 'score'
-      ? ['groq', 'gemini', 'anthropic', 'openai']
-      : ['gemini', 'groq', 'anthropic', 'openai'];
-
-  // AI_PROVIDER pins the preferred provider to the front of the chain but must
-  // not remove the other available providers from the fallback path.
-  const effectiveOrder =
-    preferred && preferred in byId ? [preferred, ...order.filter((id) => id !== preferred)] : order;
-
-  const list = [];
-  for (const id of effectiveOrder) {
-    if (byId[id]()) list.push(id === 'groq' ? groqAdapter : id === 'gemini' ? geminiAdapter : id === 'anthropic' ? anthropicAdapter : openaiAdapter);
-  }
-
-  // No provider configured: return an empty chain so callers fall through to
-  // their deterministic local fallback rather than attempting an adapter whose
-  // credentials are missing.
-  return list;
-}
-
-export function getModelForTask(task: ModelTask, providerId: string): string {
-  if (providerId === 'groq') {
-    return process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
-  }
-  if (providerId === 'gemini') {
-    if (task === 'tailor') return process.env.TAILOR_MODEL || 'gemini-2.5-pro';
-    return process.env.SCORE_MODEL || 'gemini-2.5-flash';
-  }
-  if (providerId === 'anthropic') {
-    return task === 'tailor'
-      ? process.env.TAILOR_MODEL_ANTHROPIC || 'claude-sonnet-4-5'
-      : process.env.SCORE_MODEL_ANTHROPIC || 'claude-haiku-4-5';
-  }
-  if (providerId === 'openai') {
-    return task === 'tailor' ? 'gpt-4o' : 'gpt-4o-mini';
-  }
-  return 'gemini-2.5-flash';
+  const defaultOrder = task === 'score'
+    ? ['groq', 'gemini', 'anthropic', 'openai']
+    : ['gemini', 'groq', 'anthropic', 'openai'];
+  const order = preferred && adapters.has(preferred)
+    ? [preferred, ...defaultOrder.filter((id) => id !== preferred)]
+    : defaultOrder;
+  return order.flatMap((id) => {
+    const adapter = adapters.get(id);
+    if (!adapter?.isAvailable()) return [];
+    const modelName = id === 'groq'
+      ? process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
+      : id === 'gemini'
+        ? (task === 'tailor' ? process.env.TAILOR_MODEL || 'gemini-2.5-pro' : process.env.SCORE_MODEL || 'gemini-2.5-flash')
+        : id === 'anthropic'
+          ? (task === 'tailor' ? process.env.TAILOR_MODEL_ANTHROPIC || 'claude-sonnet-4-5' : process.env.SCORE_MODEL_ANTHROPIC || 'claude-haiku-4-5')
+          : (task === 'tailor' ? 'gpt-4o' : 'gpt-4o-mini');
+    return [{ adapter, modelName }];
+  });
 }
 
 /**
  * Multi-Model AI Orchestration Engine with Zod Strict Output Validation
  */
 export async function runModel<T = any>(task: ModelTask, input: any): Promise<T> {
-  const pipeline = getModelPipeline(task);
+  const pipeline = await getModelPipeline(task);
 
   if (task === 'score') {
     const { jobDescription, resumeText } = input as ScoreModelInput;
     const prompt = buildScoreMatchPrompt(jobDescription, resumeText);
 
-    for (const adapter of pipeline) {
-      const modelName = getModelForTask('score', adapter.id);
+    for (const { adapter, modelName } of pipeline) {
       try {
-        console.log(`[AI Orchestrator] Running 'score' with ${adapter.name} (${modelName})...`);
+        console.log(`[AI Orchestrator] Running 'score' with ${adapter.name} (${modelName}).`);
         const rawResult = await adapter.generateJson({
           modelName,
           systemInstruction: SCORE_MATCH_SYSTEM_PROMPT,
@@ -145,7 +159,7 @@ export async function runModel<T = any>(task: ModelTask, input: any): Promise<T>
 
         return validated as unknown as T;
       } catch (err: any) {
-        console.warn(`[AI Orchestrator] ${adapter.name} failed:`, err?.message || err);
+        console.warn(`[AI Orchestrator] ${adapter.id} score attempt failed; sensitive provider error details omitted.`);
       }
     }
 
@@ -157,10 +171,9 @@ export async function runModel<T = any>(task: ModelTask, input: any): Promise<T>
     const { jobDescription, resumeText, missingKeywords } = input as TailorModelInput;
     const prompt = buildTailorPrompt(jobDescription, resumeText, missingKeywords);
 
-    for (const adapter of pipeline) {
-      const modelName = getModelForTask('tailor', adapter.id);
+    for (const { adapter, modelName } of pipeline) {
       try {
-        console.log(`[AI Orchestrator] Running 'tailor' with ${adapter.name} (${modelName})...`);
+        console.log(`[AI Orchestrator] Running 'tailor' with ${adapter.name} (${modelName}).`);
         const rawResult = await adapter.generateJson({
           modelName,
           systemInstruction: TAILOR_RESUME_SYSTEM_PROMPT,
@@ -178,7 +191,7 @@ export async function runModel<T = any>(task: ModelTask, input: any): Promise<T>
 
         return validated as unknown as T;
       } catch (err: any) {
-        console.warn(`[AI Orchestrator] ${adapter.name} failed for tailoring:`, err?.message || err);
+        console.warn(`[AI Orchestrator] ${adapter.id} tailoring attempt failed; sensitive provider error details omitted.`);
       }
     }
 
@@ -198,14 +211,13 @@ Respond in valid JSON:
   "experience_years": 3
 }`;
 
-    for (const adapter of pipeline) {
-      const modelName = getModelForTask('parse', adapter.id);
+    for (const { adapter, modelName } of pipeline) {
       try {
         const raw = await adapter.generateJson({ modelName, prompt });
         const validated = ParseCandidateSchema.parse(raw);
         return validated as unknown as T;
       } catch {
-        // Continue to fallback
+        console.warn(`[AI Orchestrator] ${adapter.id} parse attempt failed; sensitive provider error details omitted.`);
       }
     }
 

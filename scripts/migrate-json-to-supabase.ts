@@ -36,12 +36,16 @@ function asDate(value: unknown, fallback = new Date().toISOString()): string {
   return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString();
 }
 
-const sourceUsers = values(state.users);
+const seededDemoIds = new Set(['user_demo_free', 'user_demo_pro']);
+const sourceUsers = values(state.users).filter((user: any) => !seededDemoIds.has(String(user.id)));
+const sourceResumes = values(state.resumes).filter((row: any) => !seededDemoIds.has(String(row.userId)));
+const sourceScans = values(state.jobScans).filter((scan: any) => !seededDemoIds.has(String(scan.userId || scan.user_id)));
+const sourceApplications = values(state.applications).filter((row: any) => !seededDemoIds.has(String(row.userId)));
 const userIds = new Set(sourceUsers.map((user: any) => String(user.id)));
 const missingUserReferences = [
-  ...values(state.resumes).map((row: any) => ({ entity: 'resume', rowId: row.id, userId: row.userId })),
-  ...values(state.jobScans).map((row: any) => ({ entity: 'job scan', rowId: row.id, userId: row.userId || row.user_id })),
-  ...values(state.applications).map((row: any) => ({ entity: 'application', rowId: row.id, userId: row.userId })),
+  ...sourceResumes.map((row: any) => ({ entity: 'resume', rowId: row.id, userId: row.userId })),
+  ...sourceScans.map((row: any) => ({ entity: 'job scan', rowId: row.id, userId: row.userId || row.user_id })),
+  ...sourceApplications.map((row: any) => ({ entity: 'application', rowId: row.id, userId: row.userId })),
 ].filter((row) => !row.userId || !userIds.has(String(row.userId)));
 if (missingUserReferences.length) {
   const examples = missingUserReferences.slice(0, 5)
@@ -76,7 +80,7 @@ const users = sourceUsers.map((row: any) => ({
   updated_at: asDate(row.updatedAt || row.createdAt),
 }));
 
-const resumes = values(state.resumes).map((row: any) => ({
+const resumes = sourceResumes.map((row: any) => ({
   id: String(row.id),
   user_id: String(row.userId),
   original_file_name: String(row.originalFileName || 'resume'),
@@ -90,7 +94,7 @@ const resumes = values(state.resumes).map((row: any) => ({
   created_at: asDate(row.createdAt),
 }));
 
-const scans = values(state.jobScans).map((row: any) => ({
+const scans = sourceScans.map((row: any) => ({
   id: String(row.id),
   user_id: String(row.userId || row.user_id),
   job_title: row.jobTitle ?? row.job_title ?? null,
@@ -108,7 +112,7 @@ const scans = values(state.jobScans).map((row: any) => ({
   created_at: asDate(row.createdAt ?? row.created_at),
 }));
 
-const applications = values(state.applications).map((row: any) => ({
+const applications = sourceApplications.map((row: any) => ({
   id: String(row.id),
   user_id: String(row.userId),
   company: String(row.company || ''),

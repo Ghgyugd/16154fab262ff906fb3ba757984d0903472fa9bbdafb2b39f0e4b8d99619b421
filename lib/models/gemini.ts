@@ -90,7 +90,7 @@ export class GeminiAdapter {
         }
       }
       throw new Error(
-        `Gemini response was not parseable JSON: ${cleaned.slice(0, 200)}`
+        'Gemini response was not parseable JSON.'
       );
     }
   }

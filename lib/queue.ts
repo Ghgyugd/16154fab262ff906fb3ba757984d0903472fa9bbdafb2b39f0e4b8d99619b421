@@ -205,14 +205,15 @@ class BackgroundTaskQueue {
       this.notify(jobId, job);
     } catch (err: any) {
       if (!timedOut) {
-        console.error(`[Queue] Job ${jobId} failed:`, err);
+        console.error(`[Queue] Job ${jobId} failed:`, err instanceof Error ? err.name : 'unknown error');
       } else {
         console.error(`[Queue] Job ${jobId} timed out after ${MODEL_TIMEOUT_MS}ms`);
       }
       job.status = 'FAILED';
       job.timedOut = timedOut;
-      job.error =
-        err?.message || 'Failed to complete AI tailoring background worker';
+      job.error = timedOut
+        ? 'AI tailoring timed out. Please retry.'
+        : 'AI tailoring could not be completed. Please retry.';
       job.completedAt = new Date().toISOString();
       this.notify(jobId, job);
     } finally {
