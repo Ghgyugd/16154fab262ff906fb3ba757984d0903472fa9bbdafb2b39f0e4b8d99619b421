@@ -7,28 +7,97 @@
  * index.html. Previously they named "Plus Jakarta Sans" and "Caveat" while only
  * Space Grotesk / IBM Plex Sans / JetBrains Mono were loaded, so every heading
  * silently fell back to a system font.
+ *
+ * Every colour the UI uses is declared here. Components must consume these
+ * tokens (or the Tailwind utilities generated from them) rather than raw hex
+ * values or off-palette Tailwind shades such as `purple-600`, `sky-200` or
+ * `#475569` — those are what made individual elements drift away from the
+ * brand. The result is that a palette change lands in one file.
+ *
+ * Tailwind v4 generates `bg-*`, `text-*`, `border-*`, `ring-*` and
+ * `shadow-*` utilities from each `--color-*` entry, including multi-step names
+ * such as `--color-surface-muted` -> `bg-surface-muted`.
  */
 @theme {
+  /* --- Brand core ------------------------------------------------------ */
   --color-corporate-cloud: #f7f9fc;
   --color-corporate-navy: #0b2545;
   --color-corporate-blue: #1d4ed8;
   --color-corporate-steel: #8da9c4;
 
+  /*
+   * Neutrals.
+   *
+   * Named by role rather than by shade so utilities read naturally:
+   * `text-ink`, `border-line`, `bg-surface` — instead of the stuttering
+   * `text-text-primary` / `border-border-subtle` that a literal
+   * `--color-text-primary` would generate.
+   */
   --color-canvas: #f7f9fc;
   --color-surface-base: #ffffff;
-  --color-surface-muted: #f0f4f8;
+  --color-surface: #f0f4f8;
   --color-surface-navy: #0b2545;
-  --color-border-subtle: #e2e8f0;
-  --color-border-steel: #8da9c4;
-  --color-border-strong: #cbd5e1;
+
+  --color-ink: #0b2545;
+  --color-ink-soft: #334e68;
+  --color-ink-faint: #627d98;
+
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+  --color-line-steel: #8da9c4;
+
+  /* Legacy aliases kept so older references keep resolving. */
   --color-text-primary: #0b2545;
   --color-text-secondary: #334e68;
   --color-text-muted: #627d98;
+  --color-border-subtle: #e2e8f0;
+  --color-border-steel: #8da9c4;
+  --color-border-strong: #cbd5e1;
+  --color-surface-muted: #f0f4f8;
   --color-accent-primary: #0b2545;
   --color-accent-blue: #1d4ed8;
   --color-accent-steel: #8da9c4;
   --color-accent-amber: #d97706;
 
+  /*
+   * Blue ramp. The hero headline, primary buttons and progress bars all gradient
+   * through these, so the ramp lives here instead of being re-typed per file.
+   */
+  --color-blue-ink: #0b2545;
+  --color-blue-deep: #1e40af;
+  --color-blue-core: #1d4ed8;
+  --color-blue-mid: #2563eb;
+  --color-blue-bright: #3b82f6;
+  --color-blue-light: #60a5fa;
+  --color-blue-pale: #93c5fd;
+  --color-blue-wash: #dbeafe;
+  --color-blue-mist: #eff5fc;
+
+  /*
+   * Semantic states. Previously these were raw Tailwind shades (amber-500,
+   * rose-600, emerald-700, purple-600) which meant the same "warning" was two
+   * different oranges depending on the component. Anything that renders a
+   * pass/warn/fail/pending state must use these.
+   */
+  --color-success: #047857;
+  --color-success-soft: #ecfdf5;
+  --color-success-border: #a7f3d0;
+
+  --color-warning: #b45309;
+  --color-warning-strong: #92400e;
+  --color-warning-soft: #fffbeb;
+  --color-warning-border: #fde68a;
+
+  --color-danger: #be123c;
+  --color-danger-strong: #9f1239;
+  --color-danger-soft: #fff1f2;
+  --color-danger-border: #fecdd3;
+
+  --color-gap: #1d4ed8;
+  --color-gap-soft: #eff6ff;
+  --color-gap-border: #bfdbfe;
+
+  /* --- Type ------------------------------------------------------------ */
   --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
     Arial, sans-serif;
   --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
@@ -125,6 +194,61 @@
   display: none !important;
 }
 
+/*
+ * Clerk's social buttons are left visible.
+ *
+ * They used to be hidden because the app rendered its own "Continue with
+ * Google" button instead. Authentication is Clerk-only now, so Clerk owns the
+ * whole dialog and every provider connected on the instance appears on its own.
+ * Adding GitHub, Apple or Microsoft in the Clerk Dashboard is therefore enough:
+ * no code change is required for a new provider to show up here.
+ */
+
+/*
+ * Token colours for the <CodeBlock> viewer.
+ *
+ * Scoped to `.code-block` so highlight.js class names can never leak into the
+ * rest of the application. Tokens are rendered as React elements from parsed
+ * data (never via dangerouslySetInnerHTML) — see src/components/CodeBlock.tsx.
+ */
+.code-block .hljs-attr,
+.code-block .hljs-attribute,
+.code-block .hljs-selector-tag,
+.code-block .hljs-property {
+  color: #7dd3fc;
+}
+.code-block .hljs-string,
+.code-block .hljs-template-variable,
+.code-block .hljs-addition {
+  color: #86efac;
+}
+.code-block .hljs-number,
+.code-block .hljs-literal,
+.code-block .hljs-symbol,
+.code-block .hljs-bullet {
+  color: #fcd34d;
+}
+.code-block .hljs-keyword,
+.code-block .hljs-built_in,
+.code-block .hljs-type,
+.code-block .hljs-selector-class {
+  color: #c4b5fd;
+}
+.code-block .hljs-comment,
+.code-block .hljs-quote,
+.code-block .hljs-meta {
+  color: #7f9bc4;
+}
+.code-block .hljs-punctuation,
+.code-block .hljs-operator {
+  color: #cbd5e1;
+}
+.code-block .hljs-title,
+.code-block .hljs-section,
+.code-block .hljs-name {
+  color: #93c5fd;
+}
+
 @keyframes laserScan {
   0% {
     top: 0%;
@@ -154,3 +278,59 @@
   }
 }
 
+
+/*
+ * Shared component primitives.
+ *
+ * These were previously re-typed inline in a dozen files, which is why panels
+ * drifted between `rounded-2xl` and `rounded-3xl` with slightly different
+ * shadows. Defining them once keeps every surface on the landing page and in the
+ * workspace visually identical.
+ */
+
+/* Frosted card used for every panel, card and section block. */
+.surface-panel {
+  background: rgb(255 255 255 / 55%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgb(255 255 255 / 80%);
+  box-shadow:
+    0 12px 32px -8px rgb(11 37 69 / 8%),
+    inset 0 1px 0 rgb(255 255 255 / 95%);
+}
+
+/* Slightly denser variant for content-dense cards. */
+.surface-panel-strong {
+  background: rgb(255 255 255 / 70%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgb(255 255 255 / 85%);
+  box-shadow:
+    0 20px 50px -12px rgb(11 37 69 / 14%),
+    inset 0 1px 0 rgb(255 255 255 / 95%);
+}
+
+/* Hairline separator that matches the border tokens. */
+.rule-subtle {
+  border-color: var(--color-border-subtle);
+}
+
+/*
+ * Blueprint grid texture. Used by the hero bridge graphic and the interactive
+ * background so the grid pitch and colour are identical everywhere.
+ */
+.blueprint-grid {
+  background-image:
+    linear-gradient(to right, rgb(141 169 196 / 35%) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(141 169 196 / 35%) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/*
+ * Keyboard focus is handled globally in @layer base. This class is for the rare
+ * case where a control needs the ring without the 2px offset (inline controls
+ * inside a bordered row).
+ */
+.focus-ring-inset:focus-visible {
+  outline-offset: -2px;
+}

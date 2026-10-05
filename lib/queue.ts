@@ -1,4 +1,6 @@
 import { runModel, TailorModelInput } from './models.js';
+import { atsEngine } from './ats-engine.js';
+import { validateAgainstSource } from './grounding.js';
 import { supabaseDb as db } from './supabase-db.js';
 
 /** Hard cap on retained jobs so a long-lived server cannot grow unbounded. */
@@ -20,6 +22,8 @@ export interface BackgroundJob {
     /** True when produced by the local fallback rather than a real model. */
     synthetic?: boolean;
     notice?: string;
+    /** Post-tailor score recomputed from the rewritten text, never predicted. */
+    rescan?: { matchScore: number; keywordCoveragePercent: number; previousMatchScore: number } | null;
   };
   error?: string;
   /** True when the job failed because the model call exceeded MODEL_TIMEOUT_MS. */
@@ -143,7 +147,7 @@ class BackgroundTaskQueue {
   private async processJob(
     jobId: string,
     scanId: string,
-    userId: string,
+    _userId: string,
     input: TailorModelInput
   ) {
     const job = this.jobs.get(jobId);
@@ -156,50 +160,84 @@ class BackgroundTaskQueue {
     let timedOut = false;
 
     try {
-      // Execute deep LLM tailoring, but stop waiting on a hung provider.
-      // The underlying promise is left to settle on its own; its result is
-      // simply ignored once the race is decided.
-      const tailorResult = await new Promise<any>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          timedOut = true;
-          reject(
-            new Error(
-              `AI tailoring timed out after ${MODEL_TIMEOUT_MS / 1000}s. Please retry.`
-            )
-          );
-        }, MODEL_TIMEOUT_MS);
+      const withTimeout = <T>(promise: Promise<T>): Promise<T> =>
+        new Promise<T>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            timedOut = true;
+            reject(
+              new Error(
+                `AI tailoring timed out after ${MODEL_TIMEOUT_MS / 1000}s. Please retry.`
+              )
+            );
+          }, MODEL_TIMEOUT_MS);
 
-        runModel<any>('tailor', input).then(
-          (value) => {
-            clearTimeout(timer);
-            resolve(value);
-          },
-          (err) => {
-            clearTimeout(timer);
-            reject(err);
-          }
-        );
-      });
+          // The underlying promise is left to settle on its own; its result is
+          // simply ignored once the race is decided.
+          promise.then(
+            (value) => {
+              clearTimeout(timer);
+              resolve(value);
+            },
+            (err) => {
+              clearTimeout(timer);
+              reject(err);
+            }
+          );
+        });
+
+      // Resume and cover letter are separate tasks with their own admin-set
+      // model bindings, so the models an admin picks are the models that run.
+      const [tailorResult, coverLetterResult] = await withTimeout(
+        Promise.all([
+          runModel<any>('tailor', input),
+          runModel<any>('cover_letter', {
+            jobDescription: input.jobDescription,
+            sourceResumeText: input.sourceResumeText,
+            jobTitle: input.jobTitle,
+            company: input.company,
+          }),
+        ])
+      );
 
       job.progress = 85;
       this.notify(jobId, job);
 
+      const tailoredResumeText: string = tailorResult.tailored_resume_text || '';
+      const coverLetterText: string = coverLetterResult.cover_letter_text || '';
+
+      // Recompute the score from the rewritten text. `improved_match_score` used
+      // to be taken from the model's own prediction, which is a made-up number.
+      const rescan = tailoredResumeText
+        ? atsEngine.analyzeMatch(input.jobDescription, tailoredResumeText)
+        : null;
+      const previous = await db.getJobScan(scanId);
+
       // Save directly to database
       await db.updateJobScan(scanId, {
-        tailoredResumeText: tailorResult.tailored_resume_text,
-        coverLetterText: tailorResult.cover_letter_text,
+        tailoredResumeText: tailoredResumeText || null,
+        coverLetterText: coverLetterText || null,
         // Record whether this came from a real model or the local fallback.
         tailoredSynthetic: Boolean(tailorResult.synthetic),
+        tailoredNotice:
+          tailorResult.notice || coverLetterResult.notice || null,
       });
 
       job.status = 'COMPLETED';
       job.progress = 100;
       job.result = {
-        tailoredResumeText: tailorResult.tailored_resume_text,
-        coverLetterText: tailorResult.cover_letter_text,
+        tailoredResumeText,
+        coverLetterText,
         keyChangesMade: tailorResult.key_changes_made || [],
         synthetic: Boolean(tailorResult.synthetic),
-        notice: tailorResult.notice,
+        notice:
+          validateAgainstSource(tailoredResumeText, input.sourceResumeText).note,
+        rescan: rescan
+          ? {
+              matchScore: rescan.matchScore,
+              keywordCoveragePercent: rescan.keywordCoveragePercent,
+              previousMatchScore: previous?.matchScore ?? 0,
+            }
+          : null,
       };
       job.completedAt = new Date().toISOString();
       this.notify(jobId, job);

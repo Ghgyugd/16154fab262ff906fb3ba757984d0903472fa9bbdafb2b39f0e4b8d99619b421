@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   AiSparklesIcon,
   Target02Icon,
   Shield01Icon,
   CheckmarkCircle02Icon,
-  FileValidationIcon,
 } from '@hugeicons/core-free-icons';
 import {
   ChevronDown,
@@ -20,6 +19,7 @@ import { CapabilitiesBento } from '../components/CapabilitiesBento.js';
 import { AtsPipelineDiagram } from '../components/AtsPipelineDiagram.js';
 import { BulletDiffExplorer } from '../components/BulletDiffExplorer.js';
 import { Logo } from '../components/Logo.js';
+import { OwnerProfileCard, type OwnerProfileData } from '../components/OwnerProfile.js';
 import { FREE_SCAN_LIMIT, PRO_PRICE_INR } from '../config.js';
 
 interface LandingPageProps {
@@ -32,7 +32,7 @@ const FAQS = [
   {
     question: 'How does ResumeSetu identify gaps between my resume and the job?',
     answer:
-      'Our engine compares semantic token proximity and recruiter screening rubrics from both your resume and the target job posting. It flags missing technical competencies, hard tools, and quantifiable benchmarks expected by Greenhouse, Lever, and Workday.',
+      'Our engine compares semantic token proximity and recruiter screening rubrics from both your resume and the target job posting. It flags the technical competencies and hard tools this posting asks for, and reports them as gaps you can close yourself. We do not submit your documents to Greenhouse, Lever or Workday, so no vendor parse result is claimed.',
   },
   {
     question: 'Does the system invent or fabricate career history?',
@@ -62,20 +62,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenDeleteData,
 }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  // Owner identity for the footer contact card. Fetched from the server so the
+  // handle and photo are deployment configuration, not hard-coded in the bundle.
+  const [owner, setOwner] = useState<OwnerProfileData | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/payments/config')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.owner) setOwner(data.owner as OwnerProfileData);
+      })
+      .catch(() => {
+        // The footer is decorative; a missing contact card must not break the page.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="relative w-full max-w-full min-h-screen text-[#0B2545] selection:bg-[#0B2545] selection:text-white overflow-x-hidden">
       {/* =========================================================================
           1. HERO SECTION: BOLD CLEAN HEADLINE + BLUE & LIGHT-BLUE GRADIENTS + 3D
          ========================================================================= */}
-      <section id="hero" className="relative pt-24 sm:pt-28 lg:pt-32 pb-16 sm:pb-24 border-b border-[#8DA9C4]/30 w-full overflow-x-hidden">
+      <section id="hero" className="relative pt-24 sm:pt-28 lg:pt-32 pb-16 sm:pb-24 border-b border-line-steel/30 w-full overflow-x-hidden">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full min-w-0">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start w-full min-w-0">
             {/* Left Col: Master Value Proposition */}
             <div className="lg:col-span-6 space-y-6 w-full min-w-0">
               {/* Handwritten Cursive Pre-headline (No Emoji) */}
               <div className="flex items-center gap-2">
-                <span className="font-cursive text-2xl sm:text-3xl text-[#1D4ED8] -rotate-2 font-bold select-none tracking-wide">
+                <span className="font-cursive text-2xl sm:text-3xl text-blue-core -rotate-2 font-bold select-none tracking-wide">
                   From raw draft to recruiter shortlist
                 </span>
               </div>
@@ -83,11 +101,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Bold Clean Headline with Blue and Light Blue Gradient */}
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-[#0B2545] leading-[1.12]">
                 Bridge the gap between your{' '}
-                <span className="bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#60A5FA] bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-blue-core via-blue-mid to-blue-light bg-clip-text text-transparent">
                   resume
                 </span>{' '}
                 and your{' '}
-                <span className="bg-gradient-to-r from-[#1D4ED8] via-[#3B82F6] to-[#93C5FD] bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-blue-core via-blue-bright to-blue-pale bg-clip-text text-transparent">
                   next opportunity
                 </span>
                 .
@@ -102,10 +120,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </p>
 
               {/* What the product actually returns — no unverifiable success statistics */}
-              <div className="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-white/80 shadow-[0_4px_16px_rgba(11,37,69,0.04),inset_0_1px_0_rgba(255,255,255,0.95)] max-w-xl">
+              <div className="grid grid-cols-3 gap-2.5 p-3 surface-panel rounded-2xl max-w-xl">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-200/70 shadow-2xs">
-                    <Check className="w-4 h-4 text-blue-600 stroke-[2.5]" />
+                  <div className="w-8 h-8 rounded-xl bg-blue-wash text-blue-core flex items-center justify-center shrink-0 border border-blue-pale/60/70 shadow-2xs">
+                    <Check className="w-4 h-4 text-blue-mid stroke-[2.5]" />
                   </div>
                   <div>
                     <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">0–100</span>
@@ -113,9 +131,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5 border-x border-[#8DA9C4]/25 px-2">
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#1D4ED8] flex items-center justify-center shrink-0 border border-blue-200/70 shadow-2xs">
-                    <Zap className="w-4 h-4 text-[#1D4ED8] fill-[#1D4ED8]/20" />
+                <div className="flex items-center gap-2.5 border-x border-line-steel/25 px-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-wash text-blue-core flex items-center justify-center shrink-0 border border-blue-pale/60/70 shadow-2xs">
+                    <Zap className="w-4 h-4 text-blue-core fill-[#1D4ED8]/20" />
                   </div>
                   <div>
                     <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">Live</span>
@@ -124,8 +142,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2.5 pl-1">
-                  <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0 border border-purple-200/70 shadow-2xs">
-                    <HugeiconsIcon icon={Shield01Icon} size={16} className="text-purple-600" />
+                  <div className="w-8 h-8 rounded-xl bg-blue-wash text-blue-core flex items-center justify-center shrink-0 border border-blue-pale/50 shadow-2xs">
+                    <HugeiconsIcon icon={Shield01Icon} size={16} className="text-blue-core" />
                   </div>
                   <div>
                     <span className="text-xs font-mono font-bold text-[#0B2545] block leading-tight">Yours</span>
@@ -139,7 +157,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <button
                   type="button"
                   onClick={onScanClick}
-                  className="flex-1 px-6 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#3B82F6] hover:from-[#1E40AF] hover:via-[#1D4ED8] hover:to-[#2563EB] transition-all cursor-pointer flex items-center justify-center gap-3 shadow-[0_12px_28px_-4px_rgba(29,78,216,0.5),0_4px_12px_-2px_rgba(29,78,216,0.3),inset_0_1px_0_rgba(255,255,255,0.35)] hover:shadow-[0_16px_36px_-4px_rgba(29,78,216,0.65)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-md"
+                  className="flex-1 px-6 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-gradient-to-r from-blue-core via-blue-mid to-blue-bright hover:from-blue-deep hover:via-blue-core hover:to-[#2563EB] transition-all cursor-pointer flex items-center justify-center gap-3 shadow-[0_12px_28px_-4px_rgba(29,78,216,0.5),0_4px_12px_-2px_rgba(29,78,216,0.3),inset_0_1px_0_rgba(255,255,255,0.35)] hover:shadow-[0_16px_36px_-4px_rgba(29,78,216,0.65)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-md"
                 >
                   <HugeiconsIcon icon={AiSparklesIcon} size={18} className="text-white" />
                   <span>Analyze Your Resume Free</span>
@@ -150,19 +168,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                 <a
                   href="#how-it-works"
-                  className="px-6 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-[#0B2545] hover:text-[#1D4ED8] bg-gradient-to-b from-white to-[#F0F4F8] hover:from-[#F0F4F8] hover:to-white border border-[#8DA9C4]/40 shadow-[0_6px_18px_-2px_rgba(11,37,69,0.08),inset_0_1px_0_rgba(255,255,255,1)] hover:shadow-[0_10px_24px_-2px_rgba(11,37,69,0.12)] hover:-translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0"
+                  className="px-6 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-[#0B2545] hover:text-blue-core bg-gradient-to-b from-white to-[#F0F4F8] hover:from-[#F0F4F8] hover:to-white border border-line-steel/40 shadow-[0_6px_18px_-2px_rgba(11,37,69,0.08),inset_0_1px_0_rgba(255,255,255,1)] hover:shadow-[0_10px_24px_-2px_rgba(11,37,69,0.12)] hover:-translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0"
                 >
-                  <HugeiconsIcon icon={Target02Icon} size={18} className="text-[#1D4ED8]" />
+                  <HugeiconsIcon icon={Target02Icon} size={18} className="text-blue-core" />
                   <span>How It Works</span>
                 </a>
               </div>
 
               {/* CLEAN HORIZONTAL COMPARISON BAR (What you send in / what you get back) */}
-              <div className="glass-panel p-4 sm:p-5 rounded-2xl !bg-white/55 backdrop-blur-xl border border-white/80 shadow-[0_12px_32px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] max-w-xl space-y-3">
+              <div className="glass-panel p-4 sm:p-5 surface-panel rounded-2xl max-w-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-[#0B2545]">Resume Match Calibration</span>
-                    <span className="font-cursive text-base text-[#1D4ED8] font-bold">
+                    <span className="font-cursive text-base text-blue-core font-bold">
                       Measured on your own scan
                     </span>
                   </div>
@@ -178,13 +196,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <div className="flex justify-between items-center text-[11px]">
                       <div className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#627D98]" />
-                        <span className="font-semibold text-[#475569]">Input: Your Resume + Job Post</span>
+                        <span className="font-semibold text-[#334E68]">Input: Your Resume + Job Post</span>
                       </div>
                       <span className="font-mono font-bold text-[#334E68] bg-white border border-[#CBD5E1] px-2.5 py-0.5 rounded-full text-[10px] shadow-2xs">
                         Text Extraction
                       </span>
                     </div>
-                    <div className="h-3 w-full rounded-full bg-slate-200/80 overflow-hidden p-0.5 shadow-inner">
+                    <div className="h-3 w-full rounded-full bg-line/80 overflow-hidden p-0.5 shadow-inner">
                       <div
                         className="h-full rounded-full bg-[#627D98] transition-all duration-1000 shadow-sm"
                         style={{ width: '100%' }}
@@ -196,16 +214,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-[11px]">
                       <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                        <span className="font-bold text-[#1D4ED8]">Output: Score + Keyword Gaps</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-wash0" />
+                        <span className="font-bold text-blue-core">Output: Score + Keyword Gaps</span>
                       </div>
-                      <span className="font-mono font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full text-[10px] shadow-2xs">
+                      <span className="font-mono font-bold text-blue-ink bg-blue-wash border border-blue-pale/60 px-2.5 py-0.5 rounded-full text-[10px] shadow-2xs">
                         0–100 Match
                       </span>
                     </div>
-                    <div className="h-3 w-full rounded-full bg-blue-100/80 overflow-hidden p-0.5 shadow-inner">
+                    <div className="h-3 w-full rounded-full bg-blue-wash/80 overflow-hidden p-0.5 shadow-inner">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-blue-500 transition-all duration-1000 shadow-sm"
+                        className="h-full rounded-full bg-gradient-to-r from-blue-core via-blue-mid to-blue-bright transition-all duration-1000 shadow-sm"
                         style={{ width: '100%' }}
                       />
                     </div>
@@ -213,13 +231,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
 
                 {/* Plain language reassurance points */}
-                <div className="flex flex-wrap items-center justify-between gap-y-1.5 gap-x-2 text-[11px] text-[#627D98] pt-2 border-t border-slate-200/60">
+                <div className="flex flex-wrap items-center justify-between gap-y-1.5 gap-x-2 text-[11px] text-[#627D98] pt-2 border-t border-line/60">
                   <span className="flex items-center gap-1.5 font-bold text-[#0B2545] whitespace-nowrap">
-                    <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" /> {FREE_SCAN_LIMIT} free scans / month
+                    <Check className="w-3.5 h-3.5 text-blue-mid shrink-0" /> {FREE_SCAN_LIMIT} free scans / month
                   </span>
-                  <span className="text-slate-300 hidden sm:inline">·</span>
+                  <span className="text-line-strong hidden sm:inline">·</span>
                   <span className="font-medium whitespace-nowrap">Single-column Word</span>
-                  <span className="text-slate-300 hidden sm:inline">·</span>
+                  <span className="text-line-strong hidden sm:inline">·</span>
                   <span className="font-medium whitespace-nowrap">Encrypted at rest, delete anytime</span>
                 </div>
               </div>
@@ -262,11 +280,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
              Replaces a "verified case study" section whose candidates, offers and
              score lifts were invented, and which we cannot substantiate.
          ========================================================================= */}
-      <section id="proof" className="py-20 sm:py-28 border-b border-[#8DA9C4]/30 relative">
+      <section id="proof" className="py-20 sm:py-28 border-b border-line-steel/30 relative">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center max-w-2xl mx-auto mb-16">
-            <div className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-[#1D4ED8] mb-2">
-              <HugeiconsIcon icon={Target02Icon} size={16} className="text-[#1D4ED8]" />
+            <div className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-core mb-2">
+              <HugeiconsIcon icon={Target02Icon} size={16} className="text-blue-core" />
               <span>What Every Scan Reports</span>
             </div>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#0B2545] tracking-tight">
@@ -295,10 +313,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             ].map((item) => (
               <div
                 key={item.title}
-                className="p-7 sm:p-8 rounded-3xl bg-white/55 backdrop-blur-xl border border-white/80 shadow-[0_12px_32px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] space-y-3"
+                className="p-7 sm:p-8 surface-panel rounded-3xl space-y-3"
               >
                 <div className="flex items-center gap-2">
-                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600" />
+                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-mid" />
                   <h3 className="text-base font-bold text-[#0B2545]">{item.title}</h3>
                 </div>
                 <p className="text-xs sm:text-sm text-[#334E68] leading-relaxed">{item.body}</p>
@@ -312,10 +330,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           7. PRICING LAYOUT: TWO SIDE-BY-SIDE 3D CARDS (Free vs Pro)
              Pro Card is Highly Prominent with Dark Navy Background & Electric Blue Button
          ========================================================================= */}
-      <section id="pricing" className="py-20 sm:py-28 border-b border-[#8DA9C4]/30 scroll-mt-16 relative">
+      <section id="pricing" className="py-20 sm:py-28 border-b border-line-steel/30 scroll-mt-16 relative">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center max-w-xl mx-auto mb-16">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#1D4ED8] block mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-core block mb-2">
               Transparent Membership
             </span>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#0B2545] tracking-tight">
@@ -329,7 +347,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           {/* Two Side-by-Side Pricing Cards with High 3D Elevation */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
             {/* ----------------- FREE CARD (HIGH TRANSPARENCY GLASSMORPHISM) ----------------- */}
-            <div className="p-8 sm:p-9 rounded-3xl bg-white/45 backdrop-blur-2xl border border-white/70 shadow-[0_20px_50px_-10px_rgba(11,37,69,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_28px_60px_-10px_rgba(29,78,216,0.22)] hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between space-y-8 relative overflow-hidden">
+            <div className="p-8 sm:p-9 surface-panel-strong rounded-3xl hover:shadow-[0_28px_60px_-10px_rgba(29,78,216,0.22)] hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between space-y-8 relative overflow-hidden">
               <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent" />
 
               <div className="space-y-4">
@@ -346,25 +364,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   Evaluate resume compatibility on {FREE_SCAN_LIMIT} targeted job descriptions every single month.
                 </p>
 
-                <div className="pt-5 border-t border-slate-100/80 space-y-3.5 text-xs sm:text-sm text-[#0B2545]">
+                <div className="pt-5 border-t border-surface/80 space-y-3.5 text-xs sm:text-sm text-[#0B2545]">
                   <div className="flex items-center gap-2.5">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-mid shrink-0" />
                     <span>{FREE_SCAN_LIMIT} job match analyses each month</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-mid shrink-0" />
                     <span>0–100 ATS compatibility rating</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-mid shrink-0" />
                     <span>Missing keyword diagnostic report</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-mid shrink-0" />
                     <span>Single-column ATS format preview</span>
                   </div>
                   <div className="flex items-center gap-2.5 text-[#627D98]">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-600 shrink-0" />
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} className="text-blue-mid shrink-0" />
                     <span>Encrypted at rest, delete your data on request</span>
                   </div>
                 </div>
@@ -373,14 +391,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <button
                 type="button"
                 onClick={onScanClick}
-                className="w-full py-4 px-5 rounded-xl border border-[#8DA9C4]/40 bg-gradient-to-b from-white/90 to-[#EEF4FB]/90 hover:from-[#EEF4FB] hover:to-[#E2ECF6] text-[#0B2545] font-bold text-xs uppercase tracking-wider transition-all shadow-[0_4px_12px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,1)] hover:shadow-md cursor-pointer"
+                className="w-full py-4 px-5 rounded-xl border border-line-steel/40 bg-gradient-to-b from-white/90 to-[#EEF4FB]/90 hover:from-[#EEF4FB] hover:to-[#E2ECF6] text-[#0B2545] font-bold text-xs uppercase tracking-wider transition-all shadow-[0_4px_12px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,1)] hover:shadow-md cursor-pointer"
               >
                 Start Free ({FREE_SCAN_LIMIT} Scans / Month)
               </button>
             </div>
 
             {/* ----------------- PRO CARD (HIGHLY PROMINENT WITH TRANSLUCENT NAVY GLASS & 3D SHADOW) ----------------- */}
-            <div className="p-8 sm:p-9 rounded-3xl bg-[#0B2545]/90 backdrop-blur-2xl text-white border-2 border-[#1D4ED8] shadow-[0_24px_70px_rgba(11,37,69,0.45),0_10px_30px_rgba(29,78,216,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] relative overflow-hidden ring-4 ring-[#1D4ED8]/25 hover:shadow-[0_32px_80px_rgba(29,78,216,0.45)] hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between space-y-8">
+            <div className="p-8 sm:p-9 rounded-3xl bg-[#0B2545]/92 backdrop-blur-2xl text-white border-2 border-blue-core shadow-[0_24px_70px_rgba(11,37,69,0.45),0_10px_30px_rgba(29,78,216,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] relative overflow-hidden ring-4 ring-[#1D4ED8]/25 hover:shadow-[0_32px_80px_rgba(29,78,216,0.45)] hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between space-y-8">
               {/* Luminous Ambient Radial Glow */}
               <div className="absolute top-0 right-0 w-72 h-72 bg-[#1D4ED8]/35 rounded-full blur-3xl pointer-events-none" />
 
@@ -454,7 +472,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <button
                   type="button"
                   onClick={onOpenPaywall}
-                  className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#38BDF8] hover:from-[#1E40AF] hover:via-[#1D4ED8] hover:to-[#2563EB] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-[0_12px_28px_-4px_rgba(29,78,216,0.65),inset_0_1px_0_rgba(255,255,255,0.4)] cursor-pointer active:translate-y-0.5 flex items-center justify-center gap-2.5"
+                  className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-blue-core via-blue-mid to-blue-bright hover:from-blue-deep hover:via-blue-core hover:to-[#2563EB] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-[0_12px_28px_-4px_rgba(29,78,216,0.65),inset_0_1px_0_rgba(255,255,255,0.4)] cursor-pointer active:translate-y-0.5 flex items-center justify-center gap-2.5"
                 >
                   <span>Upgrade to Pro — ₹{PRO_PRICE_INR}/mo</span>
                   <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
@@ -473,7 +491,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* =========================================================================
           8. FAQ ACCORDION
          ========================================================================= */}
-      <section className="py-20 sm:py-28 border-b border-[#8DA9C4]/30">
+      <section className="py-20 sm:py-28 border-b border-line-steel/30">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-xl mx-auto mb-14">
             <h2 className="text-2xl sm:text-3xl font-bold text-[#0B2545] tracking-tight">
@@ -488,20 +506,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {FAQS.map((faq, idx) => (
               <div
                 key={idx}
-                className="rounded-2xl bg-white/45 backdrop-blur-2xl border border-white/70 overflow-hidden shadow-[0_4px_16px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] hover:shadow-md transition-all"
+                className="surface-panel rounded-2xl overflow-hidden hover:shadow-md transition-all"
               >
                 <button
                   type="button"
                   onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
                   aria-expanded={openFaq === idx}
                   aria-controls={`faq-panel-${idx}`}
-                  className="w-full px-6 py-4.5 text-left flex items-center justify-between text-sm font-bold text-[#0B2545] hover:text-[#1D4ED8] transition-colors cursor-pointer"
+                  className="w-full px-6 py-4.5 text-left flex items-center justify-between text-sm font-bold text-[#0B2545] hover:text-blue-core transition-colors cursor-pointer"
                 >
                   <span>{faq.question}</span>
                   <ChevronDown
                     aria-hidden="true"
                     className={`w-4 h-4 text-[#8DA9C4] transition-transform duration-200 ${
-                      openFaq === idx ? 'rotate-180 text-[#1D4ED8]' : ''
+                      openFaq === idx ? 'rotate-180 text-blue-core' : ''
                     }`}
                   />
                 </button>
@@ -511,7 +529,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     id={`faq-panel-${idx}`}
                     role="region"
                     aria-label={faq.question}
-                    className="px-6 pb-5 text-xs sm:text-sm text-[#334E68] leading-relaxed border-t border-slate-100 pt-3.5"
+                    className="px-6 pb-5 text-xs sm:text-sm text-[#334E68] leading-relaxed border-t border-surface pt-3.5"
                   >
                     {faq.answer}
                   </div>
@@ -525,33 +543,58 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* =========================================================================
           9. CORPORATE CLOUD MINIMALIST FOOTER WITH SINGLE COLOR BRANDING
          ========================================================================= */}
-      <footer className="py-14 bg-[#0B2545] text-[#8DA9C4] border-t border-[#0B2545]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            <Logo variant="dark" size="md" />
-            <span className="text-xs text-[#8DA9C4]/80 hidden sm:inline">
-              · Precision ATS Screening & STAR Bullet Optimization
-            </span>
+      <footer className="py-12 sm:py-14 bg-[#0B2545] text-[#8DA9C4] border-t border-[#0B2545]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0">
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-8">
+            <div className="min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Logo variant="dark" size="md" />
+                <span className="text-xs text-[#8DA9C4]/80 hidden sm:inline">
+                  · Precision ATS Screening &amp; Action-First Tailoring
+                </span>
+              </div>
+              <p className="text-xs text-[#8DA9C4]/70 mt-3 max-w-sm leading-relaxed">
+                Resume documents are analysed locally, never submitted to a third-party
+                parser, and you can purge everything we store at any time.
+              </p>
+            </div>
+
+            {/* Owner contact: who handles activation, and where to reach them. */}
+            {owner && (
+              <div className="w-full lg:w-auto lg:min-w-[340px] rounded-2xl border border-white/10 bg-white/5 p-4">
+                <OwnerProfileCard owner={owner} variant="dark" className="!p-0 !border-0 !bg-transparent w-full" />
+                <button
+                  type="button"
+                  onClick={onOpenPaywall}
+                  className="mt-3.5 w-full rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-white hover:bg-white/20 transition-colors cursor-pointer"
+                >
+                  Request Pro activation
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-6 text-xs text-[#8DA9C4]">
-            <button
-              type="button"
-              onClick={onOpenDeleteData}
-              className="hover:text-white transition-colors cursor-pointer font-medium"
-            >
-              Purge Stored Data
-            </button>
-            <span>·</span>
-            <button
-              type="button"
-              onClick={onOpenPaywall}
-              className="hover:text-white transition-colors cursor-pointer font-medium"
-            >
-              Pro Membership (₹{PRO_PRICE_INR}/mo)
-            </button>
-            <span>·</span>
-            <span className="text-[#8DA9C4]/60">© 2026 ResumeSetu</span>
+          <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <button
+                type="button"
+                onClick={onOpenDeleteData}
+                className="hover:text-white transition-colors cursor-pointer font-medium"
+              >
+                Purge Stored Data
+              </button>
+              <button
+                type="button"
+                onClick={onOpenPaywall}
+                className="hover:text-white transition-colors cursor-pointer font-medium"
+              >
+                Pro Membership (₹{PRO_PRICE_INR}/mo)
+              </button>
+              <span className="text-[#8DA9C4]/50">© 2026 ResumeSetu</span>
+            </div>
+            <p className="text-[#8DA9C4]/60 leading-relaxed">
+              Pro is activated manually after payment is confirmed — never automatically.
+            </p>
           </div>
         </div>
       </footer>

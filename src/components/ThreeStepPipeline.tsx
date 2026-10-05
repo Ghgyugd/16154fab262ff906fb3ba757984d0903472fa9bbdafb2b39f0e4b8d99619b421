@@ -35,8 +35,8 @@ const STEPS: StepItem[] = [
     icon: CheckCheck,
     title: 'Export Tailored Word Document',
     description:
-      'Download a clean, single-column .DOCX with Google STAR-formatted bullet points ready for ATS screeners.',
-    actionHint: '100% parse-ready .DOCX format',
+      'Download a single-column, table-free Word file built only from your own resume, with an action-first bullet structure.',
+    actionHint: 'Single-column, table-free .DOCX',
   },
 ];
 
@@ -46,7 +46,7 @@ export const ThreeStepPipeline: React.FC<ThreeStepPipelineProps> = ({ onScanClic
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         {/* Section Header */}
         <div className="max-w-2xl mb-12 sm:mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/60 backdrop-blur-xl border border-white/80 shadow-xs mb-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 surface-panel rounded-full mb-3">
             <Sparkles className="w-3.5 h-3.5 text-[#1D4ED8]" />
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#1D4ED8]">
               Algorithmic Workflow
@@ -59,7 +59,7 @@ export const ThreeStepPipeline: React.FC<ThreeStepPipelineProps> = ({ onScanClic
             </span>
           </h2>
           <p className="mt-3 text-base sm:text-lg text-[#334E68] leading-relaxed">
-            A deterministic 60-second pipeline from raw document ingestion to recruiter-ready Word export.
+            A deterministic pipeline from raw document ingestion to a Word file you can send.
           </p>
         </div>
 
@@ -70,21 +70,21 @@ export const ThreeStepPipeline: React.FC<ThreeStepPipelineProps> = ({ onScanClic
             return (
               <div
                 key={step.number}
-                className="relative rounded-3xl p-7 sm:p-8 bg-white/55 backdrop-blur-2xl border border-white/80 shadow-[0_12px_32px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_24px_50px_rgba(29,78,216,0.14)] hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between group overflow-hidden cursor-default"
+                className="relative surface-panel rounded-3xl p-7 sm:p-8 hover:shadow-[0_24px_50px_rgba(29,78,216,0.14)] hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between group overflow-hidden cursor-default"
               >
                 {/* Top Specular Sheen Line */}
                 <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent" />
 
                 <div>
                   {/* Step Top Bar: Icon + Number Badge */}
-                  <div className="flex items-center justify-between pb-5 mb-5 border-b border-slate-100/90">
+                  <div className="flex items-center justify-between pb-5 mb-5 border-b border-surface/90">
                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1D4ED8] to-[#0B2545] p-0.5 shadow-[0_6px_16px_rgba(29,78,216,0.25)] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300">
                       <div className="w-full h-full rounded-[14px] bg-white flex items-center justify-center">
                         <Icon className="w-5 h-5 text-[#1D4ED8]" strokeWidth={2} />
                       </div>
                     </div>
 
-                    <span className="font-mono text-xs font-bold text-[#1D4ED8] px-3 py-1 rounded-xl bg-blue-50/80 border border-blue-200/60 shadow-2xs">
+                    <span className="font-mono text-xs font-bold text-[#1D4ED8] px-3 py-1 rounded-xl bg-blue-wash border border-[#93C5FD]/60 shadow-2xs">
                       STEP {step.number}
                     </span>
                   </div>
@@ -100,11 +100,25 @@ export const ThreeStepPipeline: React.FC<ThreeStepPipelineProps> = ({ onScanClic
                 </div>
 
                 {/* Footer Sub-indicator */}
-                <div className="pt-5 mt-6 border-t border-slate-100/90 flex items-center justify-between text-xs font-semibold text-[#1D4ED8]">
+                <div className="pt-5 mt-6 border-t border-surface/90 flex items-center justify-between text-xs font-semibold text-[#1D4ED8]">
                   <span className="text-xs text-[#627D98] font-medium">{step.actionHint}</span>
-                  <div className="w-7 h-7 rounded-lg bg-blue-50/80 flex items-center justify-center text-[#1D4ED8] group-hover:translate-x-1 group-hover:bg-[#1D4ED8] group-hover:text-white transition-all duration-200 shadow-2xs">
-                    <ArrowRight className="w-4 h-4 stroke-[2.2]" />
-                  </div>
+                  {step.number === '01' ? (
+                    <button
+                      type="button"
+                      onClick={onScanClick}
+                      aria-label="Start a resume scan"
+                      className="w-7 h-7 rounded-lg bg-blue-wash flex items-center justify-center text-[#1D4ED8] hover:bg-[#1D4ED8] hover:text-white transition-all duration-200 shadow-2xs cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]/40"
+                    >
+                      <ArrowRight className="w-4 h-4 stroke-[2.2]" />
+                    </button>
+                  ) : (
+                    <div
+                      aria-hidden="true"
+                      className="w-7 h-7 rounded-lg bg-blue-wash flex items-center justify-center text-[#1D4ED8]"
+                    >
+                      <ArrowRight className="w-4 h-4 stroke-[2.2]" />
+                    </div>
+                  )}
                 </div>
               </div>
             );

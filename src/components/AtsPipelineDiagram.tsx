@@ -45,9 +45,9 @@ const STAGES: Stage[] = [
     icon: Search,
     tag: 'Semantic Mapping',
     inputLabel: 'Target Job Posting',
-    inputValue: 'Greenhouse/Lever posting containing core responsibilities and soft requirements',
+    inputValue: 'Job posting copied from any board, including Greenhouse/Lever listings',
     outputLabel: 'Screening Rubric',
-    outputValue: '12 Mandatory core tools, 4 experience benchmarks, and domain competencies',
+    outputValue: 'The required terms this posting repeats, ranked by how often they appear',
     highlights: ['Separates mandatory vs optional', 'Weights senior architectural signals', 'Extracts exact recruiter search tokens'],
   },
   {
@@ -56,12 +56,12 @@ const STAGES: Stage[] = [
     title: 'Gap Delta Analysis',
     subtitle: 'Pins missing tokens and scores resume against recruiter rubrics',
     icon: Target,
-    tag: '0–100 Alignment Score',
+    tag: '0–100 Blended Score',
     inputLabel: 'Initial Alignment',
     inputValue: '46% Raw Match (High automated rejection probability)',
     outputLabel: 'Calibrated Target',
-    outputValue: '96% ATS Cleared (Shortlist priority for hiring manager review)',
-    highlights: ['5 Missing keywords flagged', 'Weak passive verbs highlighted', 'Calculates recruiter gaze hotspots'],
+    outputValue: 'Estimated alignment only — not tested against any ATS vendor',
+    highlights: ['Missing keywords listed as gaps', 'Keyword coverage and semantic proximity reported separately', 'No invented metrics or verbs'],
   },
   {
     id: 'compile',
@@ -74,7 +74,7 @@ const STAGES: Stage[] = [
     inputValue: 'Your authentic career history, verified projects, and real metrics',
     outputLabel: 'Interview-Ready DOCX',
     outputValue: 'Single-column Microsoft Word (.docx) file and targeted cover letter',
-    highlights: ['Zero invented falsities or roles', 'Google STAR bullet structure', 'Guaranteed parser readability'],
+    highlights: ['Claims checked against your uploaded resume', 'Action-first bullet structure', 'Single-column, table-free Word file'],
   },
 ];
 
@@ -94,7 +94,7 @@ export const AtsPipelineDiagram: React.FC = () => {
             How The ATS Engine Processes Your Application
           </h2>
           <p className="mt-2 text-base text-[#334E68]">
-            A deterministic pipeline moving your resume from initial ingestion to verified shortlist priority.
+            A deterministic pipeline moving your resume from initial ingestion to a report you can act on.
           </p>
         </div>
 
@@ -139,7 +139,7 @@ export const AtsPipelineDiagram: React.FC = () => {
 
         {/* Stage Inspection Detail Panel with High Transparency Glassmorphism */}
         <div className="rounded-3xl bg-white/45 backdrop-blur-2xl border border-white/70 p-6 sm:p-8 shadow-[0_20px_50px_-10px_rgba(11,37,69,0.12),inset_0_1px_0_rgba(255,255,255,0.95)]">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-surface">
             <div>
               <span className="text-xs font-semibold text-[#1D4ED8]">
                 Step {activeStage.step} · {activeStage.tag}
@@ -152,8 +152,8 @@ export const AtsPipelineDiagram: React.FC = () => {
               </p>
             </div>
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-800 font-medium self-start sm:self-auto">
-              <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-wash border border-blue-pale text-xs text-blue-deep font-medium self-start sm:self-auto">
+              <CheckCircle2 className="w-3.5 h-3.5 text-blue-mid" />
               <span>Verified Single-Column Layout</span>
             </div>
           </div>
@@ -161,52 +161,52 @@ export const AtsPipelineDiagram: React.FC = () => {
           {/* Transformation Flow: Input -> Output */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-5 my-6 items-center">
             {/* Input Box */}
-            <div className="md:col-span-5 p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-              <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide block">
+            <div className="md:col-span-5 p-4 rounded-xl bg-canvas border border-line space-y-1.5">
+              <span className="text-[11px] font-medium text-ink-faint uppercase tracking-wide block">
                 Input Format
               </span>
-              <p className="text-xs font-semibold text-slate-900">
+              <p className="text-xs font-semibold text-ink">
                 {activeStage.inputLabel}
               </p>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <p className="text-xs text-ink-soft leading-relaxed">
                 {activeStage.inputValue}
               </p>
             </div>
 
             {/* Connecting Visual Arrow */}
             <div className="md:col-span-2 flex flex-col items-center justify-center text-center">
-              <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shadow-xs">
+              <div className="w-8 h-8 rounded-full bg-surface border border-line flex items-center justify-center text-ink-soft shadow-xs">
                 <ArrowRight className="w-4 h-4" />
               </div>
-              <span className="text-[11px] text-slate-500 mt-1.5 font-medium">
+              <span className="text-[11px] text-ink-faint mt-1.5 font-medium">
                 Calibrated
               </span>
             </div>
 
             {/* Output Box */}
-            <div className="md:col-span-5 p-4 rounded-xl bg-blue-50/40 border border-blue-200 space-y-1.5">
-              <span className="text-[11px] font-medium text-blue-700 uppercase tracking-wide block">
+            <div className="md:col-span-5 p-4 rounded-xl bg-blue-wash/40 border border-blue-pale space-y-1.5">
+              <span className="text-[11px] font-medium text-blue-core uppercase tracking-wide block">
                 Output Deliverable
               </span>
-              <p className="text-xs font-semibold text-slate-900">
+              <p className="text-xs font-semibold text-ink">
                 {activeStage.outputLabel}
               </p>
-              <p className="text-xs text-slate-700 leading-relaxed">
+              <p className="text-xs text-ink-soft leading-relaxed">
                 {activeStage.outputValue}
               </p>
             </div>
           </div>
 
           {/* Key Stage Verifications */}
-          <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs font-medium text-slate-500">Stage verifications:</span>
+          <div className="pt-4 border-t border-surface flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs font-medium text-ink-faint">Stage verifications:</span>
             <div className="flex flex-wrap items-center gap-2">
               {activeStage.highlights.map((h, i) => (
                 <span
                   key={i}
-                  className="inline-flex items-center gap-1.5 text-xs text-slate-700 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200"
+                  className="inline-flex items-center gap-1.5 text-xs text-ink-soft bg-canvas px-2.5 py-1 rounded-md border border-line"
                 >
-                  <Check className="w-3.5 h-3.5 text-blue-600" />
+                  <Check className="w-3.5 h-3.5 text-blue-mid" />
                   <span>{h}</span>
                 </span>
               ))}

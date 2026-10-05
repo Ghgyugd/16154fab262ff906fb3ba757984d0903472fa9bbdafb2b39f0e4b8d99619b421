@@ -124,7 +124,7 @@ export const DeleteDataModal: React.FC<DeleteDataModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="absolute top-4 right-4 p-2 rounded-xl text-[#627D98] hover:text-[#0B2545] hover:bg-slate-100 cursor-pointer transition-colors"
+                className="absolute top-4 right-4 p-2 rounded-xl text-[#627D98] hover:text-[#0B2545] hover:bg-surface cursor-pointer transition-colors"
                 aria-label="Close modal"
               >
                 <X className="w-5 h-5" strokeWidth={1.75} />
@@ -132,9 +132,9 @@ export const DeleteDataModal: React.FC<DeleteDataModalProps> = ({
 
               <div className="space-y-4">
                 <div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-200/60 mb-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                    <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-danger-soft border border-danger-border/70 mb-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-danger" />
+                    <span className="text-[11px] font-bold text-danger uppercase tracking-wider">
                       Irreversible Action
                     </span>
                   </div>
@@ -152,14 +152,14 @@ export const DeleteDataModal: React.FC<DeleteDataModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-[#0B2545] mb-1.5">
-                    Type <span className="font-mono font-bold text-rose-600">DELETE</span> to confirm
+                    Type <span className="font-mono font-bold text-danger">DELETE</span> to confirm
                   </label>
                   <input
                     type="text"
                     value={confirmText}
                     onChange={(e) => setConfirmText(e.target.value)}
                     placeholder="DELETE"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[#0B2545] text-xs font-mono focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 placeholder:text-[#8DA9C4] transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-line bg-canvas text-[#0B2545] text-xs font-mono focus:outline-none focus:border-danger focus:ring-2 focus:ring-danger/20 placeholder:text-[#8DA9C4] transition-colors"
                   />
                 </div>
 
@@ -167,7 +167,7 @@ export const DeleteDataModal: React.FC<DeleteDataModalProps> = ({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="w-1/2 py-2.5 rounded-xl text-xs font-semibold text-[#334E68] border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="w-1/2 py-2.5 rounded-xl text-xs font-semibold text-[#334E68] border border-line hover:bg-canvas transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -175,7 +175,7 @@ export const DeleteDataModal: React.FC<DeleteDataModalProps> = ({
                     type="button"
                     onClick={handleDelete}
                     disabled={confirmText.toLowerCase() !== 'delete' || loading}
-                    className="w-1/2 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-rose-600 hover:bg-rose-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs"
+                    className="w-1/2 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-danger hover:bg-danger-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs"
                   >
                     {loading ? 'Deleting...' : 'Delete Everything'}
                   </button>

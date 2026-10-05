@@ -20,8 +20,9 @@ if (process.env.NODE_ENV !== 'production') {
 
 const clerkSecret = requireValue('CLERK_SECRET_KEY');
 const clerkPublishable = requireValue('VITE_CLERK_PUBLISHABLE_KEY');
-const sessionSecret = requireValue('SESSION_SECRET', 32);
-const encryptionSecret = requireValue('STORAGE_ENCRYPTION_KEY', 32);
+// requireValue validates presence/length and records a failure if unusable.
+requireValue('SESSION_SECRET', 32);
+requireValue('STORAGE_ENCRYPTION_KEY', 32);
 const supabaseUrl = process.env.SUPABASE_URL?.trim() || process.env.SUPABASE_STORAGE_URL?.trim() || null;
 const supabaseSecret = requireValue('SUPABASE_SERVICE_ROLE_KEY');
 const bucketName = process.env.SUPABASE_STORAGE_BUCKET?.trim() || 'resumes-private';
@@ -88,8 +89,15 @@ if (supabaseUrl && supabaseSecret) {
     'users', 'resumes', 'job_scans', 'applications', 'llm_configs',
     'task_bindings', 'system_settings', 'security_logs',
   ];
+  // NOTE: probe with a real SELECT, never `head: true`.
+  //
+  // With `head: true` this client reports `error: null` for a table that does
+  // not exist (verified against this project: a bogus table yields
+  // head:error=null but rows:error=PGRST205). The deploy gate therefore passed
+  // while `users` or `security_logs` could have been missing — the one class of
+  // failure it exists to catch. `.limit(1)` returns PGRST205 correctly.
   const tableChecks = await Promise.all(tableNames.map(async (table) => {
-    const { error } = await supabase.from(table).select('*', { head: true, count: 'exact' });
+    const { error } = await supabase.from(table).select('*').limit(1);
     return { table, error };
   }));
   for (const { table, error } of tableChecks) {
@@ -100,6 +108,46 @@ if (supabaseUrl && supabaseSecret) {
   if (quotaFunction.error) failures.push(`Supabase quota function is unavailable (${quotaFunction.error.code || 'request failed'}).`);
   const pingFunction = await supabase.rpc('record_session_ping', { p_user_id: probeId, p_seconds: 0 });
   if (pingFunction.error) failures.push(`Supabase session analytics function is unavailable (${pingFunction.error.code || 'request failed'}).`);
+
+  /*
+   * Every AI task must have at least one model whose provider key is actually
+   * present.
+   *
+   * getModelPipeline silently skips providers with no key and runModel falls
+   * back to deterministic/local output, so an unreachable binding never throws.
+   * That is the right behaviour for a user mid-request, but it means a fully
+   * dead binding is invisible: cover_letter was bound to Gemini with an OpenAI
+   * fallback while only GROQ_API_KEY was set, so every cover letter quietly came
+   * back as the "no AI provider was configured" outline with no error anywhere.
+   * Surfacing it here makes it a deploy warning instead of a silent downgrade.
+   */
+  const providerKeyEnv: Record<string, string> = {
+    groq: 'GROQ_API_KEY',
+    gemini: 'GEMINI_API_KEY',
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+  };
+  const [{ data: llmRows }, { data: bindingRows }] = await Promise.all([
+    supabase.from('llm_configs').select('id,provider,enabled'),
+    supabase.from('task_bindings').select('task,primary_model_id,fallback_model_id'),
+  ]);
+  if (llmRows && bindingRows) {
+    const byId = new Map(llmRows.map((row) => [row.id, row]));
+    for (const binding of bindingRows) {
+      const reachable = [binding.primary_model_id, binding.fallback_model_id].some((id) => {
+        const model = byId.get(id);
+        if (!model || !model.enabled) return false;
+        const envName = providerKeyEnv[model.provider];
+        return Boolean(envName && process.env[envName]);
+      });
+      if (!reachable) {
+        failures.push(
+          `AI task "${binding.task}" has no reachable model: neither its primary nor its fallback has a configured API key. ` +
+          `Its output will silently degrade to local placeholder text. Add the provider key or rebind the task.`
+        );
+      }
+    }
+  }
 } else {
   failures.push('Supabase Storage/Postgres connectivity could not be checked without URL and server Secret key.');
 }

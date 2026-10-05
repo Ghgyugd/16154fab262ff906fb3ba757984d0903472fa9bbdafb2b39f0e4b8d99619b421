@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AuthenticateWithRedirectCallback, ClerkProvider } from '@clerk/react';
+import { ClerkProvider } from '@clerk/react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { LenisProvider } from './context/LenisContext.js';
 import { Navbar } from './components/Navbar.js';
@@ -14,13 +14,13 @@ import { ATSInteractiveBackground } from './components/ATSInteractiveBackground.
 type Tab = 'landing' | 'dashboard' | 'admin';
 
 function MainApp() {
-  const { user, clerkUser, loading, setAuthModalOpen, setAuthMode } = useAuth();
+  const { user, identity, loading, setAuthModalOpen, setAuthMode } = useAuth();
   const [currentTab, setCurrentTab] = useState<Tab>('landing');
   const [isPaywallOpen, setPaywallOpen] = useState(false);
   const [isDeleteDataOpen, setDeleteDataOpen] = useState(false);
 
   const hasAccess = Boolean(
-    clerkUser && user && !user.isAnonymous && !user.id.startsWith('guest_')
+    identity && user && !user.isAnonymous && !user.id.startsWith('guest_')
   );
   const routingReady = !loading;
 
@@ -164,29 +164,68 @@ function MainApp() {
   );
 }
 
+/**
+ * Clerk is OPTIONAL.
+ *
+ * The app previously refused to render at all without VITE_CLERK_PUBLISHABLE_KEY
+ * and wrapped everything in <ClerkProvider>, so a Clerk outage or
+ * misconfiguration locked out every user — which is exactly what happened: the
+ * instance is configured for email one-time codes only and has no password
+ * option, so there was no traditional way in.
+ *
+ * Email + password sign-in is now first-party (see lib/passwords.ts and
+ * /api/auth/password/login) and needs no third party. ClerkProvider is mounted
+ * only when a key is present, so the Google button and the OAuth callback keep
+ * working without making them a requirement.
+ */
+/**
+ * Shown when the Clerk publishable key is missing.
+ *
+ * Authentication is Clerk-only, so this is a deployment misconfiguration rather
+ * than an optional integration: without a key nobody could sign in. It fails
+ * loudly and says exactly what to fix, instead of rendering a shell whose
+ * buttons silently do nothing.
+ */
+const MissingClerkKeyNotice: React.FC = () => (
+  <div className="grid min-h-screen place-items-center bg-gradient-to-b from-[#F2F6FC] via-[#EBF2FA] to-[#EFF5FC] p-6 font-['IBM_Plex_Sans'] text-[#0B2545]">
+    <div className="w-full max-w-md rounded-2xl border border-[#CBD5E1] bg-white p-6 shadow-xl">
+      <h1 className="font-['Space_Grotesk'] text-xl font-extrabold tracking-tight">
+        Sign-in is not configured
+      </h1>
+      <p className="mt-2 text-sm leading-relaxed text-[#334E68]">
+        ResumeSetu uses Clerk for authentication, and this deployment has no Clerk publishable
+        key. Set <code className="rounded bg-[#F2F6FC] px-1 py-0.5 text-xs">VITE_CLERK_PUBLISHABLE_KEY</code> in{' '}
+        <code className="rounded bg-[#F2F6FC] px-1 py-0.5 text-xs">.env</code> and rebuild.
+      </p>
+      <p className="mt-3 text-xs leading-relaxed text-[#627D98]">
+        The key is public and safe to expose to the browser. It is not the Clerk secret key.
+      </p>
+    </div>
+  </div>
+);
+
 export function App() {
   const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
   if (!publishableKey) {
-    return (
-      <div role="alert" className="min-h-screen flex items-center justify-center p-6 text-center font-['IBM_Plex_Sans'] text-[#0B2545]">
-        Clerk is not configured. Set VITE_CLERK_PUBLISHABLE_KEY to start the application.
-      </div>
-    );
+    return <MissingClerkKeyNotice />;
   }
 
+  /*
+   * Clerk owns authentication and is always mounted, because the sign-in dialog
+   * renders Clerk's own <SignIn>/<SignUp> components. AuthProvider then mirrors
+   * the Clerk session into ResumeSetu's signed httpOnly cookie.
+   *
+   * `routing="hash"` means Clerk intercepts the OAuth callback in-page, so the
+   * /sso-callback route this app used to hand-roll is no longer needed.
+   */
   return (
     <ClerkProvider publishableKey={publishableKey}>
-      {window.location.pathname === '/sso-callback' ? (
-        <div className="min-h-screen grid place-items-center bg-gradient-to-b from-[#F2F6FC] via-[#EBF2FA] to-[#EFF5FC] font-['IBM_Plex_Sans'] text-[#0B2545]">
-          <AuthenticateWithRedirectCallback />
-        </div>
-      ) : (
-        <LenisProvider>
-          <AuthProvider>
-            <MainApp />
-          </AuthProvider>
-        </LenisProvider>
-      )}
+      <LenisProvider>
+        <AuthProvider>
+          <MainApp />
+        </AuthProvider>
+      </LenisProvider>
     </ClerkProvider>
   );
 }

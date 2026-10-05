@@ -9,53 +9,141 @@ import {
 } from 'docx';
 
 export interface DocxResumeOptions {
-  candidateName?: string;
-  jobTitle?: string;
+  /**
+   * Real candidate name. `null`/`''` omits the name block entirely rather than
+   * printing a literal "CANDIDATE NAME" placeholder into a real application.
+   */
+  candidateName?: string | null;
+  jobTitle?: string | null;
   email?: string;
   phone?: string;
   linkedin?: string;
   tailoredText: string;
 }
 
+export interface DocxIntegrityReport {
+  verified: boolean;
+  /** Characters of text read back out of the generated file. */
+  extractedCharacters: number;
+  /** Share (0-1) of the source content lines found in the extracted text. */
+  contentCoverage: number;
+  missingSamples: string[];
+  detail: string;
+}
+
+function normalizeForCompare(value: string): string {
+  return value
+    // The Word file re-emits list items with its own bullet glyph and a tab, so
+    // list markers are dropped before comparing. Content integrity is about the
+    // words surviving the round trip, not about the bullet character.
+    .replace(/^[\s\-•*·◦▪‣⁃]+/, '')
+    .replace(/^[\s•*·◦▪‣⁃]+\t/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Reads the generated .docx back and confirms the text survived packing.
+ *
+ * A DOCX that opens but lost its content is a silent data-loss bug, so the
+ * export endpoint must fail loudly rather than hand the user an empty document.
+ */
+export async function verifyDocxIntegrity(
+  buffer: Buffer,
+  sourceText: string
+): Promise<DocxIntegrityReport> {
+  const { extractRawText } = await import('mammoth');
+  const { value } = await extractRawText({ buffer });
+  const extracted = normalizeForCompare(value || '');
+
+  const sourceLines = (sourceText || '')
+    .split('\n')
+    .map((line) => normalizeForCompare(line))
+    .filter((line) => line.length >= 12);
+
+  if (sourceLines.length === 0) {
+    return {
+      verified: extracted.length > 0,
+      extractedCharacters: extracted.length,
+      contentCoverage: extracted.length > 0 ? 1 : 0,
+      missingSamples: [],
+      detail:
+        extracted.length > 0
+          ? 'The Word file was re-opened and contains readable text.'
+          : 'The Word file was re-opened but contains no readable text.',
+    };
+  }
+
+  const missingSamples: string[] = [];
+  let found = 0;
+  for (const line of sourceLines) {
+    if (extracted.includes(line)) {
+      found += 1;
+    } else if (missingSamples.length < 3) {
+      missingSamples.push(line.slice(0, 80));
+    }
+  }
+
+  const contentCoverage = found / sourceLines.length;
+  return {
+    verified: contentCoverage >= 0.95,
+    extractedCharacters: extracted.length,
+    contentCoverage: Number(contentCoverage.toFixed(3)),
+    missingSamples,
+    detail:
+      contentCoverage >= 0.95
+        ? `${found} of ${sourceLines.length} content lines were read back out of the generated Word file.`
+        : `Only ${found} of ${sourceLines.length} content lines survived the Word export. This document is not safe to send.`,
+  };
+}
+
 export async function generateResumeDocx(options: DocxResumeOptions): Promise<Buffer> {
-  const { candidateName = 'CANDIDATE NAME', jobTitle = 'Target Role', tailoredText } = options;
+  const trimmedName = (options.candidateName || '').trim();
+  const trimmedTitle = (options.jobTitle || '').trim();
+  const { tailoredText } = options;
 
   const lines = tailoredText.split('\n').map(l => l.trim()).filter(Boolean);
   const children: Paragraph[] = [];
 
-  // Top header: Name
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 120 },
-      children: [
-        new TextRun({
-          text: candidateName.toUpperCase(),
-          bold: true,
-          size: 32, // 16pt
-          font: 'Calibri',
-          color: '1A202C',
-        }),
-      ],
-    })
-  );
+  // Top header: Name. Omitted entirely when no real name is known — printing
+  // "CANDIDATE NAME" into a document a candidate submits is a defect.
+  if (trimmedName) {
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 120 },
+        children: [
+          new TextRun({
+            text: trimmedName.toUpperCase(),
+            bold: true,
+            size: 32, // 16pt
+            font: 'Calibri',
+            color: '1A202C',
+          }),
+        ],
+      })
+    );
+  }
 
   // Subtitle: Target Job Title
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 180 },
-      children: [
-        new TextRun({
-          text: jobTitle,
-          bold: true,
-          size: 24, // 12pt
-          font: 'Calibri',
-          color: '2B6CB0',
-        }),
-      ],
-    })
-  );
+  if (trimmedTitle) {
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: trimmedName ? 180 : 300 },
+        children: [
+          new TextRun({
+            text: trimmedTitle,
+            bold: true,
+            size: 24, // 12pt
+            font: 'Calibri',
+            color: '2B6CB0',
+          }),
+        ],
+      })
+    );
+  }
 
   // Contact line
   const contactParts = [options.email, options.phone, options.linkedin].filter(Boolean);

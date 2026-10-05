@@ -1,4 +1,5 @@
 import { supabaseDb as db } from './supabase-db.js';
+import { checkIpBurstLimit } from './burst-limiter.js';
 
 export interface TierRateLimitResult {
   allowed: boolean;
@@ -17,10 +18,6 @@ export interface TierRateLimitResult {
   retryAfterSeconds?: number;
 }
 
-const BURST_MAP = new Map<string, { count: number; resetAt: number }>();
-const ONE_MINUTE_MS = 60 * 1000;
-const MAX_BURST_PER_MINUTE = 30;
-const BURST_SWEEP_THRESHOLD = 5000;
 const DEFAULT_FREE_LIMIT = 3;
 const DEFAULT_WINDOW_DAYS = 30;
 
@@ -29,50 +26,9 @@ function coerceCount(value: unknown): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
-/**
- * Per-IP burst throttle for expensive endpoints only.
- *
- * This is deliberately NOT applied to read-only polling routes (session
- * introspection, history, analytics pings): those previously burned the same
- * budget as a resume scan, so a client that polled session state a few dozen
- * times got a hard 402 on its next legitimate scan.
- */
-export function checkIpBurstLimit(ipAddress: string): {
-  allowed: boolean;
-  retryAfterSeconds?: number;
-  reason?: string;
-} {
-  const now = Date.now();
-
-  // Opportunistic sweep so the map cannot grow without bound.
-  if (BURST_MAP.size > BURST_SWEEP_THRESHOLD) {
-    for (const [key, entry] of BURST_MAP) {
-      if (now > entry.resetAt) BURST_MAP.delete(key);
-    }
-  }
-
-  const burstKey = `burst_${ipAddress}`;
-  const burst = BURST_MAP.get(burstKey);
-
-  if (!burst || now > burst.resetAt) {
-    BURST_MAP.set(burstKey, { count: 1, resetAt: now + ONE_MINUTE_MS });
-    return { allowed: true };
-  }
-
-  burst.count += 1;
-  if (burst.count > MAX_BURST_PER_MINUTE) {
-    const retryAfterSeconds = Math.max(1, Math.ceil((burst.resetAt - now) / 1000));
-    return {
-      allowed: false,
-      retryAfterSeconds,
-      reason: `Too many requests. Please retry in ${retryAfterSeconds} second${
-        retryAfterSeconds === 1 ? '' : 's'
-      }.`,
-    };
-  }
-
-  return { allowed: true };
-}
+// The IP throttle itself lives in a database-free module so it stays unit
+// testable; it is re-exported here for existing call sites.
+export { checkIpBurstLimit, resetIpBurstLimits } from './burst-limiter.js';
 
 /**
  * Tier quota enforcement. Enforces the free-tier monthly scan allowance;

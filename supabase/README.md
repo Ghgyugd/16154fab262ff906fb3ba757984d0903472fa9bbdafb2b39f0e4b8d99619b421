@@ -18,6 +18,53 @@ The project schema is provisioned by [`migrations/202610020001_initial_schema.sq
 
 Uploads are AES-256-GCM encrypted by the server before being sent to Supabase Storage. The bucket contains ciphertext only. Keep the same `STORAGE_ENCRYPTION_KEY` across deployments; changing it makes previously uploaded documents unreadable.
 
+## Pending Migrations
+
+`npm run db:check` reports whether the live schema matches what the application
+expects and prints the exact SQL for anything outstanding. It is read-only and
+safe to run at any time.
+
+One trap worth knowing if you extend it: **do not probe table existence with
+`head: true`.** In the pinned `@supabase/supabase-js`, a HEAD request against a
+table that does not exist still resolves with `error: null`, so the check
+reports "ok" for every table including missing ones — which is precisely the
+failure the script exists to catch. Use `select('*').limit(1)`, which correctly
+returns `PGRST205`.
+
+This was not hypothetical: `npm run check:deploy` had exactly this bug and was
+passing with a nonexistent table. It is now fixed in both scripts, and
+`scripts/test-unit.ts` fails the build if `head: true` reappears in either.
+
+ResumeSetu **cannot apply migrations itself**. The `sb_secret_…` key is a
+PostgREST credential: it reads and writes rows but cannot execute DDL.
+`supabase db push` needs a database password, and the Supabase Management API
+needs a personal access token. Neither is present in this environment.
+
+To apply a pending migration, paste the SQL that `db:check` prints into
+**Supabase Dashboard -> SQL Editor -> Run**, then re-run `npm run db:check`.
+
+### `202610030001_application_status_saved.sql`
+
+Adds the `SAVED` stage to `public.application_status` so the tracker can
+represent a saved-but-not-yet-applied role.
+
+```sql
+alter type public.application_status add value if not exists 'SAVED';
+```
+
+Two details in that file are deliberate and are asserted by
+`npm run test:unit`, so please do not "tidy" them:
+
+* **No `BEGIN`/`COMMIT`.** `ALTER TYPE … ADD VALUE` is rejected inside a
+  transaction block on some PostgreSQL versions.
+* **No `exception when others then null`.** The original version swallowed every
+  error, so the migration reported success while changing nothing — the enum
+  stayed missing and the tracker broke with an opaque
+  `invalid input value for enum` error.
+
+Until it is applied, tracker writes fail with a message pointing at
+`npm run db:check` rather than a raw database error.
+
 ## Import Existing JSON Data
 
 1. Back up `data/db.json` and your `uploads/` directory.
@@ -26,7 +73,7 @@ Uploads are AES-256-GCM encrypted by the server before being sent to Supabase St
 
 The import is repeatable by primary key and does not delete or modify the JSON source. It checks foreign-key owner references before writing and stops with examples if the source contains orphaned records. Resume object bytes are not copied by this command; existing `local_encrypted` resumes remain marked as local and require their original `uploads/` files. New uploads use Supabase Storage.
 
-Before a deployment, run `npm run build` followed by `npm run check:deploy`. The preflight validates production secrets, the Clerk origin, the private bucket, all expected tables, and the quota/analytics RPCs. In production, use Clerk live keys and set `NODE_ENV=production`.
+Before a deployment, run `npm run db:check` followed by `npm run build` and then `npm run check:deploy`. The preflight validates production secrets, the Clerk origin, the private bucket, all expected tables, and the quota/analytics RPCs. In production, use Clerk live keys and set `NODE_ENV=production`.
 
 ## Runtime Database
 

@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'node:crypto';
 import type {
   AdminAnalytics,
-  ApplicationStatus,
   ApplicationTracker,
   LLMConfig,
   Plan,
@@ -60,6 +59,43 @@ function fromRow<T>(value: Record<string, any> | null): T | null {
 
 function fail(error: { message: string; code?: string } | null, operation: string): void {
   if (error) throw new Error(`Supabase ${operation} failed${error.code ? ` (${error.code})` : ''}: ${error.message}`);
+}
+
+/**
+ * True when PostgREST rejected the statement because an enum lacks a value the
+ * application expects (PostgreSQL SQLSTATE 22P02, "invalid input value for enum").
+ *
+ * This is the signature of an unapplied migration. Surfacing it as an actionable
+ * message matters: the alternative was the user seeing
+ * "Supabase insert application failed (22P02): invalid input value for enum
+ * application_status: \"SAVED\"" with no indication that a schema change was
+ * pending, or that they had to paste SQL into the Supabase dashboard.
+ */
+function isMissingEnumValue(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === '22P02' ||
+    /invalid input value for enum/i.test(error.message || '')
+  );
+}
+
+/**
+ * Runs a mutation, translating an unapplied-migration failure into an error the
+ * API can present verbatim to the user.
+ */
+async function assertNoPendingMigration<T>(operation: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (isMissingEnumValue({ message })) {
+      throw new Error(
+        `This feature needs a database migration that has not been applied yet (${operation}). ` +
+          `Run "npm run db:check" for the exact SQL, or paste it into Supabase -> SQL Editor.`
+      );
+    }
+    throw err;
+  }
 }
 
 async function one<T>(query: PromiseLike<{ data: any; error: any }>, operation: string): Promise<T | null> {
@@ -282,7 +318,7 @@ export const supabaseDb = {
       many<ApplicationTracker>(supabase.from('applications').select('*'), 'stats applications'),
     ]);
     const pro = users.filter((user) => user.currentPlan === 'PRO').length;
-    const applicationsByStatus: Record<string, number> = { APPLIED: 0, INTERVIEW: 0, OFFER: 0, REJECTED: 0 };
+    const applicationsByStatus: Record<string, number> = { SAVED: 0, APPLIED: 0, INTERVIEW: 0, OFFER: 0, REJECTED: 0 };
     for (const application of applications) applicationsByStatus[application.status] = (applicationsByStatus[application.status] || 0) + 1;
     const scansByRole: Record<string, number> = {};
     for (const scan of scans) scansByRole[scan.jobTitle || 'General Engineering'] = (scansByRole[scan.jobTitle || 'General Engineering'] || 0) + 1;
@@ -430,10 +466,12 @@ export const supabaseDb = {
   },
 
   async createApplication(data: Omit<ApplicationTracker, 'id' | 'createdAt'>): Promise<ApplicationTracker> {
-    const application = { ...data, id: `app_${crypto.randomUUID()}`, createdAt: new Date().toISOString() };
-    const { data: row, error } = await supabase.from('applications').insert(toRow(application)).select('*').single();
-    fail(error, 'create application');
-    return fromRow<ApplicationTracker>(row)!;
+    return assertNoPendingMigration('create application', async () => {
+      const application = { ...data, id: `app_${crypto.randomUUID()}`, createdAt: new Date().toISOString() };
+      const { data: row, error } = await supabase.from('applications').insert(toRow(application)).select('*').single();
+      fail(error, 'create application');
+      return fromRow<ApplicationTracker>(row)!;
+    });
   },
 
   async getApplicationsByUser(userId: string): Promise<ApplicationTracker[]> {
@@ -441,7 +479,9 @@ export const supabaseDb = {
   },
 
   async updateApplication(id: string, userId: string, updates: Partial<ApplicationTracker>): Promise<ApplicationTracker | null> {
-    return one<ApplicationTracker>(supabase.from('applications').update(toRow(updates)).eq('id', id).eq('user_id', userId).select('*').maybeSingle(), 'update application');
+    return assertNoPendingMigration('update application', async () =>
+      one<ApplicationTracker>(supabase.from('applications').update(toRow(updates)).eq('id', id).eq('user_id', userId).select('*').maybeSingle(), 'update application')
+    );
   },
 
   async deleteApplication(id: string, userId: string): Promise<boolean> {

@@ -1,6 +1,13 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { useAuth as useClerkAuth, useClerk, useUser } from '@clerk/react';
-import { FREE_SCAN_LIMIT, PRO_UNLIMITED_CREDITS, remainingScansFor } from '../config.js';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { useAuth as useClerkAuth } from '@clerk/react';
+import { FREE_SCAN_LIMIT, PRO_UNLIMITED_CREDITS } from '../config.js';
 import { User } from '../types/index.js';
 
 export interface AuthIdentity {
@@ -12,7 +19,7 @@ export interface AuthIdentity {
 
 interface AuthContextType {
   user: User | null;
-  clerkUser: AuthIdentity | null;
+  identity: AuthIdentity | null;
   loading: boolean;
   isAuthModalOpen: boolean;
   setAuthModalOpen: (open: boolean) => void;
@@ -25,9 +32,42 @@ interface AuthContextType {
   authError: string | null;
   clearAuthError: () => void;
   refreshUser: () => Promise<void>;
+  /**
+   * Clerk accepted the credentials but ResumeSetu's own database session could
+   * not be created. The dialog offers a retry in this state.
+   */
+  authBackendDown: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+/**
+ * Reads an API response as JSON, but refuses to pretend an HTML page is one.
+ *
+ * `.catch(() => ({}))` is deliberately absent: swallowing a failed `res.json()`
+ * is what previously produced the misleading "Could not sync your account" with
+ * no actionable detail.
+ */
+async function readApiJson(res: Response): Promise<any> {
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    if (res.status === 404) {
+      throw new Error(
+        'The ResumeSetu API is not reachable at this address (HTTP 404). This deploy is not serving the /api endpoints.'
+      );
+    }
+    throw new Error(
+      `The server replied with an unexpected (non-JSON) response — HTTP ${res.status}. Please retry in a moment.`
+    );
+  }
+  try {
+    return await res.json();
+  } catch {
+    throw new Error(
+      `The server sent a response we could not read (HTTP ${res.status}). Please retry in a moment.`
+    );
+  }
+}
 
 function toAppUser(record: any, identity?: AuthIdentity | null): User {
   const plan: 'free' | 'pro' = record?.currentPlan?.toUpperCase() === 'PRO' ? 'pro' : 'free';
@@ -38,9 +78,10 @@ function toAppUser(record: any, identity?: AuthIdentity | null): User {
     displayName: record?.displayName || identity?.displayName || (id.startsWith('guest_') ? 'Guest Candidate' : null),
     photoURL: identity?.photoURL || null,
     plan,
-    credits_remaining: plan === 'pro'
-      ? PRO_UNLIMITED_CREDITS
-      : Math.max(0, FREE_SCAN_LIMIT - (record?.monthlyScansUsed || 0)),
+    credits_remaining:
+      plan === 'pro'
+        ? PRO_UNLIMITED_CREDITS
+        : Math.max(0, FREE_SCAN_LIMIT - (record?.monthlyScansUsed || 0)),
     isAnonymous: id.startsWith('guest_'),
     isAdmin: Boolean(record?.isAdmin),
     role: record?.role || (record?.isAdmin ? 'ADMIN' : 'USER'),
@@ -49,122 +90,170 @@ function toAppUser(record: any, identity?: AuthIdentity | null): User {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { isLoaded, isSignedIn, getToken } = useClerkAuth();
-  const { signOut } = useClerk();
-  const { user: clerkResource, isLoaded: userLoaded } = useUser();
+  /*
+   * Clerk owns authentication. Everything else in the app talks to our own
+   * endpoints, so this provider's job is to bridge the two: when Clerk reports a
+   * signed-in user, exchange that for ResumeSetu's signed httpOnly session
+   * cookie; when Clerk reports signed out, drop it.
+   */
+  const clerk = useClerkAuth();
+  const { isSignedIn, isLoaded, getToken, signOut: clerkSignOut } = clerk;
+
   const [user, setUser] = useState<User | null>(null);
+  const [identity, setIdentity] = useState<AuthIdentity | null>(null);
+  const [authBackendDown, setAuthBackendDown] = useState(false);
   const [loading, setLoading] = useState(true);
+  /** Clerk user id whose session we have already mirrored, to avoid re-syncing. */
+  const syncedClerkUser = useRef<string | null>(null);
+  const inFlightSync = useRef<Promise<void> | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const lastSyncedIdentity = useRef<string | null>(null);
-  const [syncAttempt, setSyncAttempt] = useState(0);
 
-  const clerkUser: AuthIdentity | null = clerkResource
-    ? {
-        uid: clerkResource.id,
-        email: clerkResource.primaryEmailAddress?.emailAddress || null,
-        displayName: clerkResource.fullName,
-        photoURL: clerkResource.imageUrl || null,
+  /*
+   * Restore an existing ResumeSetu session.
+   *
+   * The signed httpOnly cookie is what every other endpoint authorises against,
+   * so it is the only thing that decides whether `user` is set. Clerk is
+   * consulted for *credentials*, never trusted directly for authorisation.
+   */
+  const restoreSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (res.ok) {
+        const data = await readApiJson(res);
+        if (data?.user) {
+          setUser(toAppUser(data.user));
+          setIdentity(null);
+          setAuthBackendDown(false);
+          return true;
+        }
       }
-    : null;
-
-  const syncWithBackend = async (token: string, identity: AuthIdentity, guestToken?: string | null) => {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ guestToken: guestToken || undefined }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.user) {
-      throw new Error(data.error || 'Could not sync your account. Please try again.');
+    } catch {
+      // A failed restore leaves the visitor signed out; it must not throw.
     }
-    return toAppUser(data.user, identity);
-  };
+    setUser(null);
+    setIdentity(null);
+    return false;
+  }, []);
 
-  useEffect(() => {
-    if (!isLoaded || !userLoaded) return;
+  /**
+   * Exchange a live Clerk session for a ResumeSetu session cookie.
+   *
+   * Called whenever Clerk reports a signed-in user, which covers every sign-in
+   * path Clerk supports — email code, password, and any connected social
+   * provider — so there is exactly one integration point regardless of how the
+   * user authenticated.
+   */
+  const syncClerkSession = useCallback(async (): Promise<void> => {
+    // React StrictMode double-invokes effects; share one request.
+    if (inFlightSync.current) return inFlightSync.current;
 
-    if (!isSignedIn || !clerkUser) {
-      lastSyncedIdentity.current = null;
-      setUser(null);
+    const run = (async () => {
+      setLoading(true);
       setAuthError(null);
-      setLoading(false);
-      return;
-    }
-
-    if (lastSyncedIdentity.current === clerkUser.uid) {
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    void (async () => {
       try {
         const token = await getToken();
-        if (!token) throw new Error('Your Clerk session could not be verified. Please sign in again.');
-        const guestToken = localStorage.getItem('resumesetu_guest_uid');
-        const syncedUser = await syncWithBackend(token, clerkUser, guestToken);
-        if (cancelled) return;
-        setUser(syncedUser);
-        lastSyncedIdentity.current = clerkUser.uid;
-        localStorage.removeItem('resumesetu_guest_session');
-        localStorage.removeItem('resumesetu_guest_uid');
-        setAuthError(null);
-        setAuthModalOpen(false);
-        window.location.hash = 'dashboard';
-      } catch (err) {
-        if (!cancelled) {
-          setUser(null);
-          setAuthError(err instanceof Error ? err.message : 'Authentication failed.');
-          setAuthMode('signin');
-          setAuthModalOpen(true);
+        if (!token) throw new Error('Clerk did not return a session token.');
+
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          credentials: 'include',
+          body: JSON.stringify({}),
+        });
+        const data = await readApiJson(res);
+        if (!res.ok || !data?.user) {
+          throw new Error(data?.error || `Could not finish connecting your account (HTTP ${res.status}).`);
         }
+
+        setUser(toAppUser(data.user));
+        setIdentity({
+          uid: data.user.id,
+          email: data.user.email ?? null,
+          displayName: data.user.displayName ?? null,
+          photoURL: null,
+        });
+        setAuthBackendDown(false);
+        setAuthModalOpen(false);
+        localStorage.removeItem('resumesetu_guest_uid');
+        localStorage.removeItem('resumesetu_guest_session');
+        syncedClerkUser.current = clerk.userId ?? 'signed-in';
+      } catch (err) {
+        // Credentials were accepted; only our backend session failed. Keep the
+        // user signed in at Clerk and offer a retry rather than a dead end.
+        setAuthBackendDown(true);
+        setAuthError(err instanceof Error ? err.message : 'Could not connect your account.');
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
+        inFlightSync.current = null;
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoaded, userLoaded, isSignedIn, clerkUser?.uid, getToken, syncAttempt]);
+    inFlightSync.current = run;
+    return run;
+  }, [getToken, clerk.userId]);
 
-  const retryBackendSync = () => {
-    lastSyncedIdentity.current = null;
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    if (!isSignedIn) {
+      syncedClerkUser.current = null;
+      setAuthBackendDown(false);
+      void (async () => {
+        setLoading(true);
+        const restored = await restoreSession();
+        setLoading(false);
+        if (!restored) setUser(null);
+      })();
+      return;
+    }
+
+    if (syncedClerkUser.current && syncedClerkUser.current === (clerk.userId ?? 'signed-in')) return;
+    void syncClerkSession();
+  }, [isLoaded, isSignedIn, clerk.userId, restoreSession, syncClerkSession]);
+
+  const retryBackendSync = useCallback(() => {
     setAuthError(null);
-    setLoading(true);
-    setSyncAttempt((attempt) => attempt + 1);
-  };
+    syncedClerkUser.current = null;
+    void syncClerkSession();
+  }, [syncClerkSession]);
 
-  const refreshUser = async () => {
-    const res = await fetch('/api/auth/me');
-    if (!res.ok) return;
-    const data = await res.json().catch(() => ({}));
-    if (data.user) setUser(toAppUser(data.user, clerkUser));
-  };
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await readApiJson(res);
+      if (data?.user) setUser(toAppUser(data.user));
+    } catch {
+      // Stale plan/credit numbers are acceptable; replacing a working session
+      // with an auth error is not.
+    }
+  }, []);
 
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-    if (isSignedIn) await signOut().catch(() => {});
+  const logout = useCallback(async () => {
+    // Sign out of Clerk first, then drop our cookie. If Clerk's call fails we
+    // still clear the local session so the UI cannot show a stale signed-in
+    // state.
+    await clerkSignOut({ redirectUrl: window.location.origin }).catch(() => {});
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
     localStorage.removeItem('resumesetu_guest_uid');
     localStorage.removeItem('resumesetu_active_user');
+    syncedClerkUser.current = null;
     setUser(null);
+    setIdentity(null);
+    setAuthBackendDown(false);
     setAuthModalOpen(false);
-    lastSyncedIdentity.current = null;
     window.location.hash = '';
-  };
+  }, [clerkSignOut]);
 
-  const cancelSubscription = async (): Promise<boolean> => {
+  const cancelSubscription = useCallback(async (): Promise<boolean> => {
     if (!user?.id) return false;
     try {
       const res = await fetch('/api/auth/cancel-pro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ userId: user.id }),
       });
       if (!res.ok) {
@@ -172,22 +261,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthError(body?.error || `Cancellation failed (HTTP ${res.status}).`);
         return false;
       }
-      setUser((prev) => prev
-        ? { ...prev, plan: 'free', credits_remaining: remainingScansFor('free', prev.credits_remaining) }
-        : null);
+      setUser((prev) =>
+        prev ? { ...prev, plan: 'free', credits_remaining: FREE_SCAN_LIMIT } : null
+      );
       return true;
     } catch {
       setAuthError('Could not reach the server to cancel your plan.');
       return false;
     }
-  };
+  }, [user?.id]);
 
-  const deleteMyData = async (): Promise<boolean> => {
+  const deleteMyData = useCallback(async (): Promise<boolean> => {
     if (!user?.id) return false;
     try {
       const res = await fetch('/api/auth/delete-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ userId: user.id }),
       });
       if (res.ok) {
@@ -198,26 +288,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       return false;
     }
-  };
+  }, [user?.id, logout]);
 
   const clearAuthError = useCallback(() => setAuthError(null), []);
+
   return (
-    <AuthContext.Provider value={{
-      user,
-      clerkUser,
-      loading,
-      isAuthModalOpen,
-      setAuthModalOpen,
-      authMode,
-      setAuthMode,
-      retryBackendSync,
-      logout,
-      cancelSubscription,
-      deleteMyData,
-      refreshUser,
-      authError,
-      clearAuthError,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        identity,
+        loading,
+        isAuthModalOpen,
+        setAuthModalOpen,
+        authMode,
+        setAuthMode,
+        retryBackendSync,
+        logout,
+        cancelSubscription,
+        deleteMyData,
+        authError,
+        clearAuthError,
+        refreshUser,
+        authBackendDown,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

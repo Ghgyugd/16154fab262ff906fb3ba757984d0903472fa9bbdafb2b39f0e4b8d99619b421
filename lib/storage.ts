@@ -15,8 +15,13 @@ export interface StoredFileResult {
 }
 
 const STORAGE_DIR = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(STORAGE_DIR)) {
-  fs.mkdirSync(STORAGE_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(STORAGE_DIR)) {
+    fs.mkdirSync(STORAGE_DIR, { recursive: true });
+  }
+} catch {
+  // Serverless runtimes expose a read-only filesystem; local vault creation is
+  // skipped there because Supabase Storage is the configured provider.
 }
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;

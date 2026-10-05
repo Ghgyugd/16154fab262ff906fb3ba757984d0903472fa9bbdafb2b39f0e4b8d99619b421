@@ -86,14 +86,91 @@ const STOP_WORDS = new Set([
   'responsibilities', 'qualifications', 'requirements', 'must', 'plus', 'preferred', 'skills',
 ]);
 
+/**
+ * Weighting of the two independent components of the ATS score.
+ *
+ * Keyword coverage is the auditable one ("x of y required terms appear in your
+ * resume"). Semantic proximity is a bag-of-words cosine similarity and only
+ * measures vocabulary overlap. Keeping them separate is what stopped a resume
+ * covering 2 of 7 keywords (29%) from being reported as an 86% match.
+ */
+const COVERAGE_WEIGHT = 55;
+const SEMANTIC_WEIGHT = 45;
+/** Cosine similarity of two short documents rarely exceeds ~0.45; this rescales. */
+const SEMANTIC_STRETCH = 2.2;
+/** Display caps only. Scoring always uses the complete term sets. */
+const MAX_REPORTED_MATCHED = 12;
+const MAX_REPORTED_MISSING = 12;
+
+export interface ScoreBreakdown {
+  /** 0-100. Auditable keyword coverage. */
+  keywordCoverage: number;
+  /** 0-100. Calibrated vector proximity (not a recruiter judgement). */
+  semanticProximity: number;
+  /** 0-100. Weighted blend of the two components above. */
+  overall: number;
+}
+
+export interface InputQuality {
+  resumeChars: number;
+  jobDescriptionChars: number;
+  /** False whenever no score could be computed honestly. */
+  scorable: boolean;
+  /** Machine-readable reason for `scorable === false`. */
+  reason: 'ok' | 'empty_resume' | 'empty_job_description' | 'no_keyword_signal';
+  /** Sentence shown to the user when nothing could be scored. */
+  explanation: string;
+}
+
+/**
+ * Generic recruiting filler.
+ *
+ * These words repeat in almost every posting, carry no role signal, and were
+ * therefore being promoted into the "required keyword" set purely by appearing
+ * twice. That diluted keyword coverage (the denominator grew with filler the
+ * candidate could never meaningfully evidence) and put phrases like "Nice people
+ * apply" into the required list. They are filtered from BOTH documents so the
+ * two sides stay symmetric.
+ */
+const GENERIC_JD_NOISE = new Set([
+  'work', 'works', 'working', 'worked', 'candidate', 'candidates', 'applicant', 'applicants',
+  'company', 'companies', 'organisation', 'organizations', 'team', 'teams', 'people',
+  'including', 'include', 'includes', 'including:', 'strong', 'excellent', 'good', 'great',
+  'new', 'person', 'persons', 'ability', 'able', 'knowledge', 'understanding', 'familiar',
+  'across', 'within', 'using', 'use', 'uses', 'join', 'joining', 'help', 'helps',
+  'benefit', 'benefits', 'offer', 'offers', 'offering', 'environment', 'environments',
+  'opportunity', 'opportunities', 'level', 'levels', 'high', 'well', 'bonus', 'ideal',
+  'ideally', 'preferably', 'looking', 'join', 'want', 'wants', 'need', 'needs',
+  'please', 'kind', 'nice', 'vibes', 'apply', 'kindness', 'wonderful', 'matters',
+  'least', 'ideally', 'minimum', 'preferably', 'professional', 'stakeholder', 'stakeholders',
+]);
+
 export interface AtsMatchAnalysis {
+  /** Blended 0-100 ATS score. Read `scoreBreakdown` for the components. */
   matchScore: number;
+  /** 0-100 semantic proximity on its own. */
+  semanticMatchScore: number;
+  cosineSimilarity: number;
+  /** 0-1 exact keyword coverage: matched / required. */
+  keywordCoverageRatio: number;
+  keywordCoveragePercent: number;
+  scoreBreakdown: ScoreBreakdown;
+  /** Every required keyword found in the resume (JD vocabulary only). */
+  keywordsMatched: string[];
+  /** Every required keyword absent from the resume (JD vocabulary only). */
+  keywordsMissing: string[];
+  matchedCount: number;
+  missingCount: number;
+  requiredCount: number;
+  /** Subset of the above restricted to recognised tools/technologies. */
+  skillsMatched: string[];
+  skillsMissing: string[];
+  /** Display-capped lists persisted on the scan record. */
   presentKeywords: string[];
   missingKeywords: string[];
   strengths: string[];
   summary: string;
-  cosineSimilarity: number;
-  keywordCoverageRatio: number;
+  inputQuality: InputQuality;
   starSuggestions: Array<{ original: string; suggestion: string; keyword: string }>;
 }
 
@@ -152,15 +229,20 @@ export class AtsAlgorithmicEngine {
       }
     }
 
-    // 2. Extract standard word tokens from what is left
+    // 2. Extract standard word tokens from what is left.
+    // Normalization happens BEFORE the stop-word test: the character filter above
+    // keeps sentence-final periods ("only."), so filtering on the raw token let
+    // "only." and "people." through as requirements while the bare words were
+    // correctly discarded.
     const rawWords = residue
       .replace(/[^a-z0-9+#.]/g, ' ')
       .split(/\s+/)
-      .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
+      .filter((w) => w.length >= 2);
 
     for (const word of rawWords) {
       const normalized = normalizeToken(word);
-      if (normalized) bump(normalized, 1);
+      if (!normalized || STOP_WORDS.has(normalized) || GENERIC_JD_NOISE.has(normalized)) continue;
+      bump(normalized, 1);
     }
 
     return { tokens, frequency: freq };
@@ -217,8 +299,11 @@ export class AtsAlgorithmicEngine {
    * "present" keywords and report perfect coverage.
    */
   analyzeMatch(jobDescription: string, resumeText: string): AtsMatchAnalysis {
-    const jdData = this.tokenize(jobDescription || '');
-    const resumeData = this.tokenize(resumeText || '');
+    const jd = (jobDescription || '').trim();
+    const resume = (resumeText || '').trim();
+
+    const jdData = this.tokenize(jd);
+    const resumeData = this.tokenize(resume);
 
     // Required vocabulary: what the job actually asks for.
     const vocabulary = new Set<string>();
@@ -228,23 +313,62 @@ export class AtsAlgorithmicEngine {
       }
     }
 
-    const emptyAnalysis = (): AtsMatchAnalysis => ({
-      matchScore: 0,
-      presentKeywords: [],
-      missingKeywords: [],
-      strengths: [],
-      summary:
-        vocabulary.size === 0
-          ? 'No recognizable role keywords were found in this job description, so no match score could be computed.'
-          : 'No resume text was supplied, so no match score could be computed.',
-      cosineSimilarity: 0,
-      keywordCoverageRatio: 0,
-      starSuggestions: [],
+    const inputQuality = (reason: InputQuality['reason'], explanation: string): InputQuality => ({
+      resumeChars: resume.length,
+      jobDescriptionChars: jd.length,
+      scorable: false,
+      reason,
+      explanation,
     });
 
     // No JD signal, or nothing to compare against -> no score rather than a fake one.
-    if (vocabulary.size === 0 || jdData.tokens.length === 0 || resumeData.tokens.length === 0) {
-      return emptyAnalysis();
+    let quality: InputQuality;
+    if (jd.length === 0) {
+      quality = inputQuality(
+        'empty_job_description',
+        'No job description was supplied, so no match score could be computed.'
+      );
+    } else if (resume.length === 0) {
+      quality = inputQuality(
+        'empty_resume',
+        'No resume text was supplied, so no match score could be computed.'
+      );
+    } else if (vocabulary.size === 0 || jdData.tokens.length === 0) {
+      quality = inputQuality(
+        'no_keyword_signal',
+        'No recognizable role keywords were found in this job description, so no match score could be computed. Paste the full posting including its requirements section.'
+      );
+    } else if (resumeData.tokens.length === 0) {
+      quality = inputQuality(
+        'empty_resume',
+        'The resume text contained no readable words, so no match score could be computed.'
+      );
+    } else {
+      quality = { resumeChars: resume.length, jobDescriptionChars: jd.length, scorable: true, reason: 'ok', explanation: '' };
+    }
+
+    if (!quality.scorable) {
+      return {
+        matchScore: 0,
+        semanticMatchScore: 0,
+        cosineSimilarity: 0,
+        keywordCoverageRatio: 0,
+        keywordCoveragePercent: 0,
+        scoreBreakdown: { keywordCoverage: 0, semanticProximity: 0, overall: 0 },
+        keywordsMatched: [],
+        keywordsMissing: [],
+        matchedCount: 0,
+        missingCount: 0,
+        requiredCount: vocabulary.size,
+        skillsMatched: [],
+        skillsMissing: [],
+        presentKeywords: [],
+        missingKeywords: [],
+        strengths: [],
+        summary: quality.explanation,
+        inputQuality: quality,
+        starSuggestions: [],
+      };
     }
 
     const jdVector = this.computeTermWeights(
@@ -260,13 +384,13 @@ export class AtsAlgorithmicEngine {
 
     const cosineSim = this.computeCosineSimilarity(jdVector, resumeVector);
 
-    // Identify Keyword Delta (Present vs Missing in Resume) over JD terms only.
-    const presentKeywords: string[] = [];
+    // Identify Keyword Delta (Matched vs Missing in Resume) over JD terms only.
+    const keywordsMatched: string[] = [];
     const missingCandidates: Array<{ term: string; score: number }> = [];
 
     for (const [term, weight] of jdVector.entries()) {
       if ((resumeData.frequency.get(term) || 0) > 0) {
-        presentKeywords.push(term);
+        keywordsMatched.push(term);
       } else if (weight > 0.005 || TECH_TAXONOMY.has(term)) {
         missingCandidates.push({ term, score: weight });
       }
@@ -276,59 +400,99 @@ export class AtsAlgorithmicEngine {
     // displayed list is capped (the old code capped first, which inflated scores
     // for candidates missing dozens of keywords).
     missingCandidates.sort((a, b) => b.score - a.score);
-    const MAX_REPORTED_MISSING = 8;
-    const totalMissing = missingCandidates.length;
-    const missingKeywords = missingCandidates.slice(0, MAX_REPORTED_MISSING).map((m) => m.term);
+    const keywordsMissing = missingCandidates.map((m) => m.term);
 
-    const totalRequiredKeywords = presentKeywords.length + totalMissing;
-    const keywordCoverage =
-      totalRequiredKeywords > 0 ? presentKeywords.length / totalRequiredKeywords : 0;
+    const matchedCount = keywordsMatched.length;
+    const missingCount = keywordsMissing.length;
+    const requiredCount = matchedCount + missingCount;
 
-    // Calibrate final deterministic ATS score (0-100%).
-    // 55% Keyword Coverage + 45% Cosine Vector Proximity.
-    const rawScore = keywordCoverage * 55 + Math.min(1, cosineSim * 2.2) * 45;
+    const keywordCoverage = requiredCount > 0 ? matchedCount / requiredCount : 0;
+    const semanticProximity = Math.min(1, cosineSim * SEMANTIC_STRETCH);
+    const rawScore = keywordCoverage * COVERAGE_WEIGHT + semanticProximity * SEMANTIC_WEIGHT;
     const matchScore = Math.max(0, Math.min(100, Math.round(rawScore)));
+
+    const skillsMatched = keywordsMatched.filter((term) => TECH_TAXONOMY.has(term));
+    const skillsMissing = keywordsMissing.filter((term) => TECH_TAXONOMY.has(term));
 
     // Formulate strengths. Nothing is asserted here that the text did not support.
     const strengths: string[] = [];
-    if (presentKeywords.length > 0) {
-      const topStrengths = presentKeywords.slice(0, 5).map((k) => k.toUpperCase());
-      strengths.push(`Resume explicitly evidences: ${topStrengths.join(', ')}.`);
+    if (matchedCount > 0) {
+      strengths.push(
+        `Your resume evidences ${matchedCount} of the ${requiredCount} required keywords: ${keywordsMatched
+          .slice(0, 5)
+          .join(', ')}${matchedCount > 5 ? ', …' : ''}.`
+      );
     }
-    if (presentKeywords.length >= 8 && matchScore >= 75) {
+    if (skillsMatched.length > 0) {
+      strengths.push(`Matched tools and technologies: ${skillsMatched.slice(0, 6).join(', ')}.`);
+    }
+    if (matchedCount >= 8 && matchScore >= 75) {
       strengths.push('Broad keyword overlap with the core requirements in this posting.');
     }
 
     // Build summary
     let summary: string;
-    if (presentKeywords.length === 0) {
-      summary = `No overlap found between this job description and the resume across ${totalMissing} required keywords.`;
+    if (matchedCount === 0) {
+      summary = `No overlap found between this job description and the resume across ${missingCount} required keywords.`;
     } else if (matchScore >= 80) {
-      summary = `Strong alignment at ${matchScore}%. The resume evidences ${presentKeywords.slice(0, 4).join(', ')}, covering ${presentKeywords.length} of ${totalRequiredKeywords} required keywords.${totalMissing > 0 ? ` Addressing the ${totalMissing} missing keyword${totalMissing === 1 ? '' : 's'} would strengthen this application.` : ' No required keywords are missing.'}`;
+      summary = `Strong alignment at ${matchScore}% (keyword coverage ${Math.round(
+        keywordCoverage * 100
+      )}%, semantic proximity ${Math.round(semanticProximity * 100)}%). The resume evidences ${keywordsMatched
+        .slice(0, 4)
+        .join(', ')}, covering ${matchedCount} of ${requiredCount} required keywords.${
+        missingCount > 0
+          ? ` Addressing the ${missingCount} missing keyword${missingCount === 1 ? '' : 's'} would strengthen this application.`
+          : ' No required keywords are missing.'
+      }`;
     } else if (matchScore >= 50) {
-      summary = `Moderate alignment at ${matchScore}%. The resume evidences ${presentKeywords.slice(0, 4).join(', ')}. It is missing ${totalMissing} required keyword${totalMissing === 1 ? '' : 's'}${missingKeywords.length ? `, including ${missingKeywords.slice(0, 4).join(', ')}` : ''}.`;
+      summary = `Moderate alignment at ${matchScore}% (keyword coverage ${Math.round(
+        keywordCoverage * 100
+      )}%, semantic proximity ${Math.round(semanticProximity * 100)}%). The resume evidences ${keywordsMatched
+        .slice(0, 4)
+        .join(', ')}. It is missing ${missingCount} required keyword${missingCount === 1 ? '' : 's'}${
+        keywordsMissing.length ? `, including ${keywordsMissing.slice(0, 4).join(', ')}` : ''
+      }.`;
     } else {
-      summary = `Weak alignment at ${matchScore}%. Only ${presentKeywords.length} of ${totalRequiredKeywords} required keywords are evidenced${missingKeywords.length ? `, and the resume lacks ${missingKeywords.slice(0, 4).join(', ')}` : ''}.`;
+      summary = `Weak alignment at ${matchScore}% (keyword coverage ${Math.round(
+        keywordCoverage * 100
+      )}%, semantic proximity ${Math.round(semanticProximity * 100)}%). Only ${matchedCount} of ${requiredCount} required keywords are evidenced${
+        keywordsMissing.length ? `, and the resume lacks ${keywordsMissing.slice(0, 4).join(', ')}` : ''
+      }.`;
     }
 
     // Deterministic STAR suggestions.
     // These are structural prompts only. No metric, employer or achievement is
     // invented here — the previous version fabricated percentages that users then
     // submitted to real employers.
-    const starSuggestions = missingKeywords.slice(0, 3).map((kw) => ({
-      original: `(No bullet found that evidences ${kw}.)`,
-      suggestion: `Add a bullet from your own experience that demonstrates ${kw}, written as: action + how you did it + measurable result. Substitute your real numbers - do not estimate.`,
+    const starSuggestions = keywordsMissing.slice(0, 3).map((kw) => ({
+      original: `(No bullet in your resume currently evidences ${kw}.)`,
+      suggestion: `Add a bullet from your own experience that demonstrates ${kw}, written as: action + how you did it + measurable result. Substitute your real numbers — leave "[add metric]" if you cannot substantiate one.`,
       keyword: kw,
     }));
 
     return {
       matchScore,
-      presentKeywords,
-      missingKeywords,
-      strengths,
-      summary,
+      semanticMatchScore: Math.round(semanticProximity * 100),
       cosineSimilarity: Number(cosineSim.toFixed(3)),
       keywordCoverageRatio: Number(keywordCoverage.toFixed(3)),
+      keywordCoveragePercent: Math.round(keywordCoverage * 100),
+      scoreBreakdown: {
+        keywordCoverage: Math.round(keywordCoverage * 100),
+        semanticProximity: Math.round(semanticProximity * 100),
+        overall: matchScore,
+      },
+      keywordsMatched,
+      keywordsMissing,
+      matchedCount,
+      missingCount,
+      requiredCount,
+      skillsMatched,
+      skillsMissing,
+      presentKeywords: keywordsMatched.slice(0, MAX_REPORTED_MATCHED),
+      missingKeywords: keywordsMissing.slice(0, MAX_REPORTED_MISSING),
+      strengths,
+      summary,
+      inputQuality: quality,
       starSuggestions,
     };
   }

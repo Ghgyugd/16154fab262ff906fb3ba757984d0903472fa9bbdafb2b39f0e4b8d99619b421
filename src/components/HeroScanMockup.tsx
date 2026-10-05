@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
-  Sparkles,
 } from 'lucide-react';
 
 export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanClick }) => {
@@ -60,9 +59,9 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
     <div className="relative w-full pt-3">
       {/* Floating unclipped badge - anchored above card with zero overflow clipping */}
       <div className="absolute top-0 right-6 z-20 pointer-events-none hidden sm:block">
-        <span className="font-cursive text-sm text-[#1D4ED8] bg-white/95 backdrop-blur-md px-3.5 py-1 rounded-full border border-blue-200/90 shadow-md font-bold inline-flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-          <span>Resume analysis preview</span>
+        <span className="font-cursive text-sm text-[#1D4ED8] bg-white/95 backdrop-blur-md px-3.5 py-1 rounded-full border border-blue-pale/90 shadow-md font-bold inline-flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-mid" />
+          <span>Illustrative demo — not your data</span>
         </span>
       </div>
 
@@ -75,8 +74,8 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
         <div className="bg-white/40 backdrop-blur-md px-4 py-3 border-b border-white/60 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]/80 inline-block" />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]/80 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-danger/70 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-warning/70 inline-block" />
               <span className="w-2.5 h-2.5 rounded-full bg-[#1D4ED8]/80 inline-block" />
             </div>
             <span className="text-[11px] font-mono font-bold tracking-tight text-[#0B2545] ml-2">
@@ -85,8 +84,8 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200 shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-wash text-blue-core text-[10px] font-bold border border-blue-pale shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-bright animate-pulse" />
               Resume Preview
             </span>
           </div>
@@ -109,7 +108,7 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
               )}
 
               <div className="space-y-3 relative z-10">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div className="flex items-center justify-between border-b border-surface pb-2">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-[#1D4ED8]/10 text-[#1D4ED8] flex items-center justify-center shrink-0">
                       <FileText className="w-3.5 h-3.5 text-[#1D4ED8]" />
@@ -149,10 +148,10 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
                 </div>
               </div>
 
-              <div className="pt-2.5 mt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-[#627D98]">
+              <div className="pt-2.5 mt-3 border-t border-surface flex items-center justify-between text-[10px] text-[#627D98]">
                 <span>Format: Single Column</span>
-                <span className="text-blue-700 font-bold flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 inline" /> Text extraction
+                <span className="text-blue-core font-bold flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-mid inline" /> Text extraction
                 </span>
               </div>
             </div>
@@ -160,7 +159,7 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
             {/* RIGHT: JOB SPECIFICATION & MATCH CRITERIA with 3D shadow */}
             <div className="glass-panel p-4 rounded-2xl !bg-white/70 backdrop-blur-xl border border-white/80 shadow-[0_8px_24px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] flex flex-col justify-between space-y-3">
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 gap-2">
+                <div className="flex items-center justify-between border-b border-surface pb-2 gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-6 h-6 rounded-lg bg-[#0B2545]/10 text-[#0B2545] flex items-center justify-center shrink-0">
                       <Target className="w-3.5 h-3.5 text-[#0B2545]" />
@@ -169,7 +168,7 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
                       Target Job Description
                     </span>
                   </div>
-                  <span className="text-[10px] font-mono text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200 font-bold whitespace-nowrap shrink-0">
+                  <span className="text-[10px] font-mono text-blue-core bg-blue-wash px-3 py-1 rounded-full border border-blue-pale font-bold whitespace-nowrap shrink-0">
                     Stripe • Tech Lead
                   </span>
                 </div>
@@ -177,34 +176,38 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
                 {/* Skill Matching Checklist */}
                 <div className="space-y-2">
                   {[
-                    { text: 'Distributed Microservices', match: '98%' },
-                    { text: 'TypeScript & Node.js', match: '100%' },
+                    { text: 'Distributed Microservices', match: 'found' },
+                    { text: 'TypeScript & Node.js', match: 'found' },
                   ].map((item) => (
                     <div
                       key={item.text}
-                      className="flex items-center justify-between text-[11px] p-2 rounded-xl bg-blue-50/80 border border-blue-200 shadow-2xs"
+                      className="flex items-center justify-between text-[11px] p-2 rounded-xl bg-blue-wash/80 border border-blue-pale shadow-2xs"
                     >
-                      <span className="text-blue-950 font-semibold flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="text-ink font-semibold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-mid shrink-0" />
                         {item.text}
                       </span>
-                      <span className="font-mono font-bold text-blue-700">{item.match}</span>
+                      <span className="font-mono font-bold text-blue-core">{item.match}</span>
                     </div>
                   ))}
 
-                  <div className="flex items-center justify-between text-[11px] p-2 rounded-xl bg-amber-50/90 border border-amber-200 shadow-2xs">
-                    <span className="text-amber-950 font-semibold flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                  <div className="flex items-center justify-between text-[11px] p-2 rounded-xl bg-warning-soft/90 border border-warning-border shadow-2xs">
+                    <span className="text-warning-strong font-semibold flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-warning" />
                       AWS ECS Canaries
                     </span>
-                    <span className="font-mono font-bold text-amber-700">Auto-Tailored</span>
+                    <span className="font-mono font-bold text-warning">Gap — not added</span>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-[#627D98]">
+              <div className="pt-2 border-t border-surface flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] text-[#627D98]">
+                <span className="w-full sm:w-auto">
+                  Fictional candidate. Keyword gaps are shown as gaps — ResumeSetu never adds a
+                  keyword you have not evidenced.
+                </span>
                 <span>Recruiter Scan Priority:</span>
-                <span className="font-mono font-bold text-[#0B2545]">Top 1% Shortlist</span>
+                <span className="font-mono font-bold text-[#0B2545]">Gap report ready</span>
               </div>
             </div>
           </div>
@@ -225,8 +228,8 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
                     <span className="text-xs sm:text-sm font-bold text-white tracking-tight">
                       Target ATS Calibration
                     </span>
-                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/40 font-semibold shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-bright/20 text-blue-pale border border-blue-light/40 font-semibold shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-light" />
                       Ready to Apply
                     </span>
                   </div>

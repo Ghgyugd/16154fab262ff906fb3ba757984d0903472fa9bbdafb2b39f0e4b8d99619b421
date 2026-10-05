@@ -1,4 +1,7 @@
 [build]
+  # Also runs scripts/write-headers.ts, which generates dist/_headers so the CSP
+  # and security headers are applied to the static document and assets. Without
+  # that step the deployed page has no Content-Security-Policy at all.
   command = "npm run build"
   publish = "dist"
 
@@ -6,3 +9,29 @@
   # False positives: these are plain config values (model ids / provider names)
   # that legitimately appear throughout the source and lockfiles.
   SECRETS_SCAN_OMIT_KEYS = "AI_PROVIDER,SCORE_MODEL,TAILOR_MODEL,GROQ_MODEL,SUPABASE_STORAGE_BUCKET"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  # express stays an installed dependency (Netlify's Express guide), vite is only
+  # reachable from startServer() which never runs in a function, and
+  # serverless-http is CommonJS that requires the `http` builtin at load time —
+  # bundling it into an ESM chunk crashes before our require shim can install.
+  external_node_modules = ["express", "vite", "serverless-http"]
+
+# The SPA is static, but the API must hit the Express app wrapped by
+# serverless-http — without this every /api/* call 404'd to index.html and the
+# client reported "Could not sync your account."
+# Processed top-down, first match wins, so this must precede the SPA fallback.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+# Client-side routes (#/signin, /dashboard, …) — mirrors the dev server's
+# app.get('*') catch-all that serves index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

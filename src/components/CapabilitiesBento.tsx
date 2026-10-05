@@ -12,10 +12,7 @@ import {
   Check,
   AlertTriangle,
   ArrowRight,
-  Clock,
   Download,
-  Sparkles,
-  TrendingUp,
 } from 'lucide-react';
 
 interface CapabilitiesBentoProps {
@@ -79,7 +76,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
       role: 'Staff Infrastructure Engineer',
       matchScore: 96,
       status: 'Tech Screen',
-      statusClass: 'bg-blue-50 text-blue-700 border-blue-200',
+      statusClass: 'bg-blue-wash text-blue-core border-blue-pale',
       isOffer: false,
     },
     {
@@ -87,7 +84,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
       role: 'Growth Engineer',
       matchScore: 94,
       status: 'Final Round',
-      statusClass: 'bg-blue-50 text-blue-700 border-blue-200',
+      statusClass: 'bg-blue-wash text-blue-core border-blue-pale',
       isOffer: false,
     },
     {
@@ -95,7 +92,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
       role: 'Senior Backend',
       matchScore: 91,
       status: 'Offer ($185k)',
-      statusClass: 'bg-blue-100 text-blue-800 border-blue-300 font-bold',
+      statusClass: 'bg-blue-wash text-blue-deep border-blue-pale font-bold',
       isOffer: true,
     },
   ];
@@ -138,7 +135,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
             <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent" />
 
             <div>
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100/80">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-surface/80">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#1D4ED8] to-[#0B2545] p-0.5 shadow-[0_6px_16px_rgba(29,78,216,0.35)] flex items-center justify-center shrink-0">
                     <div className="w-full h-full rounded-[14px] bg-[#0B2545] flex items-center justify-center relative overflow-hidden">
@@ -155,7 +152,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                   <span className="text-[11px] text-[#627D98]">Match:</span>
                   <span
                     className={`text-xl font-black tabular-nums ${
-                      currentScore >= 80 ? 'text-blue-700' : 'text-[#1D4ED8]'
+                      currentScore >= 80 ? 'text-blue-core' : 'text-[#1D4ED8]'
                     }`}
                   >
                     {currentScore}%
@@ -178,9 +175,9 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                       }`}
                     >
                       {isPresent ? (
-                        <Check className="w-3 h-3 text-blue-400" />
+                        <Check className="w-3 h-3 text-blue-light" />
                       ) : (
-                        <AlertTriangle className="w-3 h-3 text-amber-500" />
+                        <AlertTriangle className="w-3 h-3 text-warning" />
                       )}
                       <span>{k.name}</span>
                       <span className="font-mono text-[9px] opacity-80">+{k.weight}%</span>
@@ -189,22 +186,26 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                 })}
               </div>
 
-              {/* Real-time Diagnostic Meter */}
+              {/*
+                Interactive demo, not a live scan. The score below is derived from
+                the chips you toggle here and has nothing to do with your real
+                documents. The workspace shows the actual engine output instead.
+              */}
               <div className="p-3.5 rounded-2xl bg-white/70 border border-[#8DA9C4]/30 space-y-2 shadow-inner">
                 <div className="flex items-center justify-between text-[11px] font-medium">
                   <span className="text-[#0B2545] flex items-center gap-1.5 font-bold">
-                    <HugeiconsIcon icon={Shield01Icon} size={14} className="text-blue-600" />
-                    ATS Pass Probability
+                    <HugeiconsIcon icon={Shield01Icon} size={14} className="text-blue-mid" />
+                    Illustrative keyword coverage
                   </span>
-                  <span className="font-mono font-bold text-blue-700">
-                    {currentScore >= 80 ? '98.2% High Priority' : 'Moderate Priority'}
+                  <span className="font-mono font-bold text-blue-core">
+                    {currentScore >= 80 ? 'Demo only — not an ATS prediction' : 'Demo only — not an ATS prediction'}
                   </span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                <div className="w-full h-2 rounded-full bg-line overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
                       currentScore >= 80
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-400'
+                        ? 'bg-gradient-to-r from-blue-mid to-blue-light'
                         : 'bg-gradient-to-r from-[#1D4ED8] to-[#60A5FA]'
                     }`}
                     style={{ width: `${currentScore}%` }}
@@ -213,11 +214,11 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
               </div>
             </div>
 
-            <div className="pt-4 mt-5 border-t border-slate-100/80 flex items-center justify-between text-xs text-[#627D98]">
-              <span>Zero-hallucination semantic parsing</span>
+            <div className="pt-4 mt-5 border-t border-surface/80 flex items-center justify-between text-xs text-[#627D98]">
+              <span>Numbers come from the real engine on your own documents</span>
               <button
                 onClick={onScanClick}
-                className="font-bold text-[#1D4ED8] hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                className="font-bold text-[#1D4ED8] hover:text-blue-core flex items-center gap-1 cursor-pointer"
               >
                 <span>Run Gap Audit</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -232,7 +233,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
             <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent" />
 
             <div>
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100/80">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-surface/80">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#1D4ED8] to-[#0B2545] p-0.5 shadow-[0_6px_16px_rgba(29,78,216,0.35)] flex items-center justify-center shrink-0">
                     <div className="w-full h-full rounded-[14px] bg-[#0B2545] flex items-center justify-center relative overflow-hidden">
@@ -276,7 +277,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                   <span>{bulletMode === 'raw' ? 'Uncalibrated' : 'Google STAR Formula'}</span>
                   <span
                     className={`font-bold ${
-                      bulletMode === 'raw' ? 'text-amber-600' : 'text-blue-700'
+                      bulletMode === 'raw' ? 'text-warning' : 'text-blue-core'
                     }`}
                   >
                     {bulletMode === 'raw' ? 'Vague Metric' : '+38% Latency Gain'}
@@ -292,20 +293,20 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
 
               {/* Visual badges */}
               <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold text-[#0B2545]">
-                <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <div className="p-2 rounded-xl bg-white/80 border border-line/80 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-bright" />
                   <span>STAR Verified</span>
                 </div>
-                <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80 flex items-center gap-1.5">
+                <div className="p-2 rounded-xl bg-white/80 border border-line/80 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#1D4ED8]" />
                   <span>.DOCX Formatted</span>
                 </div>
               </div>
             </div>
 
-            <div className="pt-4 mt-5 border-t border-slate-100/80 flex items-center justify-between text-xs text-[#627D98]">
+            <div className="pt-4 mt-5 border-t border-surface/80 flex items-center justify-between text-xs text-[#627D98]">
               <span>Single-column format</span>
-              <span className="font-bold text-blue-700 flex items-center gap-1">
+              <span className="font-bold text-blue-core flex items-center gap-1">
                 <Download className="w-3.5 h-3.5" /> Word .docx Ready
               </span>
             </div>
@@ -318,7 +319,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
             <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent" />
 
             <div>
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100/80">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-surface/80">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#1D4ED8] to-[#0B2545] p-0.5 shadow-[0_6px_16px_rgba(29,78,216,0.35)] flex items-center justify-center shrink-0">
                     <div className="w-full h-full rounded-[14px] bg-[#0B2545] flex items-center justify-center relative overflow-hidden">
@@ -363,13 +364,13 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 text-[10px] text-blue-800 font-semibold bg-blue-50/80 p-2 rounded-xl border border-blue-200">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} className="text-blue-600 shrink-0" />
+              <div className="flex items-center gap-2 text-[10px] text-blue-deep font-semibold bg-blue-wash/80 p-2 rounded-xl border border-blue-pale">
+                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} className="text-blue-mid shrink-0" />
                 <span>Synchronized with resume bullet metrics</span>
               </div>
             </div>
 
-            <div className="pt-4 mt-5 border-t border-slate-100/80 flex items-center justify-between text-xs text-[#627D98]">
+            <div className="pt-4 mt-5 border-t border-surface/80 flex items-center justify-between text-xs text-[#627D98]">
               <span>Zero boilerplate fluff</span>
               <span className="font-bold text-[#1D4ED8]">Export Ready</span>
             </div>
@@ -382,7 +383,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
             <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent" />
 
             <div>
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100/80">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-surface/80">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#1D4ED8] to-[#0B2545] p-0.5 shadow-[0_6px_16px_rgba(29,78,216,0.35)] flex items-center justify-center shrink-0">
                     <div className="w-full h-full rounded-[14px] bg-[#0B2545] flex items-center justify-center relative overflow-hidden">
@@ -434,7 +435,7 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-surface">
                       <span className="font-mono text-xs font-bold text-[#1D4ED8]">
                         {app.matchScore}%
                       </span>
@@ -447,11 +448,11 @@ export const CapabilitiesBento: React.FC<CapabilitiesBentoProps> = ({ onScanClic
               </div>
             </div>
 
-            <div className="pt-4 mt-5 border-t border-slate-100/80 flex items-center justify-between text-xs text-[#627D98]">
+            <div className="pt-4 mt-5 border-t border-surface/80 flex items-center justify-between text-xs text-[#627D98]">
               <span>Real-time ATS screening radar</span>
               <button
                 onClick={onScanClick}
-                className="font-bold text-[#1D4ED8] hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                className="font-bold text-[#1D4ED8] hover:text-blue-core flex items-center gap-1 cursor-pointer"
               >
                 <span>Open Tracker</span>
                 <ArrowRight className="w-3.5 h-3.5" />

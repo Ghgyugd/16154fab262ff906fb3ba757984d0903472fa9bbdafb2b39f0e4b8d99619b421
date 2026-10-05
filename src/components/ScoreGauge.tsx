@@ -19,20 +19,20 @@ export const ScoreGauge: React.FC<ScoreGaugeProps> = ({
   const normalizedScore = Math.min(100, Math.max(0, score));
   const offset = circumference - (normalizedScore / 100) * circumference;
 
-  let strokeColor = '#94A3B8';
-  let badgeText = 'Needs calibration';
-  let badgeClass = 'text-[#475569] bg-slate-100 border-slate-200';
+  let strokeColor = '#8DA9C4';
+  let badgeText = 'Low coverage';
+  let badgeClass = 'text-[#334E68] bg-[#F0F4F8] border-[#CBD5E1]';
   let Icon = Target;
 
   if (normalizedScore >= 75) {
     strokeColor = '#1D4ED8';
-    badgeText = 'Strong keyword match';
-    badgeClass = 'text-[#1D4ED8] bg-blue-50 border-blue-200';
+    badgeText = 'Strong keyword coverage';
+    badgeClass = 'text-[#1D4ED8] bg-blue-wash border-blue-pale';
     Icon = CheckCircle2;
   } else if (normalizedScore >= 50) {
     strokeColor = '#2563EB';
-    badgeText = 'Moderate match';
-    badgeClass = 'text-[#0B2545] bg-sky-50 border-sky-200';
+    badgeText = 'Moderate coverage';
+    badgeClass = 'text-[#0B2545] bg-[#EFF5FC] border-[#93C5FD]/60';
     Icon = TrendingUp;
   }
 
@@ -89,7 +89,7 @@ export const ScoreGauge: React.FC<ScoreGaugeProps> = ({
           <span className="font-['Space_Grotesk'] text-2xl sm:text-3xl font-extrabold tracking-tight text-[#0B2545]">
             {displayScore}%
           </span>
-          <span className="text-[10px] text-[#627D98] font-bold uppercase tracking-wider">match</span>
+          <span className="text-[10px] text-[#627D98] font-bold uppercase tracking-wider">blended</span>
         </div>
       </div>
 

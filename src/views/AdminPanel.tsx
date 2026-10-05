@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ShieldCheck,
   Users,
   CreditCard,
-  FileText,
   Activity,
   Zap,
   Search,
@@ -14,21 +13,14 @@ import {
   CheckCircle2,
   AlertTriangle,
   Cpu,
-  DollarSign,
   Clock,
   Sliders,
   ShieldAlert,
   Trash2,
   Edit3,
-  Server,
-  Database,
-  Key,
   Ban,
-  UserCheck,
   BarChart3,
-  Check,
   X,
-  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { hasAdminPrivileges, isOwnerEmail, FREE_SCAN_LIMIT, PRO_PRICE_INR } from '../config.js';
@@ -147,6 +139,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([]);
+  const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
 
   // UI State
   const [loading, setLoading] = useState(true);
@@ -158,6 +151,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
   // Per-endpoint failure reason, so a missing panel can say why it is empty
   // instead of showing invented values.
   const [endpointErrors, setEndpointErrors] = useState<Record<string, string>>({});
+
+  /*
+   * Pending Pro upgrade requests, derived from the audit log rather than a
+   * dedicated table. `security_logs.event` is free-text with no CHECK
+   * constraint, so this needs no database migration — and an audit trail is
+   * exactly where a payment request belongs.
+   */
+  const upgradeRequests = useMemo(
+    () =>
+      securityLogs
+        .filter((log) => log.event === 'PRO_UPGRADE_REQUESTED')
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    [securityLogs]
+  );
 
   // Edit User Modal
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
@@ -599,11 +606,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
     return (
       <div className="w-full max-w-4xl mx-auto px-4 py-16 text-center">
         <div className="glass-panel p-8 sm:p-12 rounded-2xl !bg-white/80 backdrop-blur-2xl border border-white/90 shadow-[0_20px_50px_rgba(11,37,69,0.08)] space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 text-[#0B2545] flex items-center justify-center mx-auto border border-slate-200">
+          <div className="w-16 h-16 rounded-2xl bg-surface text-[#0B2545] flex items-center justify-center mx-auto border border-line">
             <Lock className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-100 text-[#0B2545] border border-slate-300">
+            <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-surface text-[#0B2545] border border-line-strong">
               Access Restricted
             </span>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
@@ -618,7 +625,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               onClick={onBackToWorkspace}
-              className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider text-[#334E68] bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider text-[#334E68] bg-surface hover:bg-line border border-line transition-colors cursor-pointer"
             >
               Return to Workspace
             </button>
@@ -649,7 +656,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
       {loadErrors.length > 0 && (
         <div
           role="alert"
-          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900"
+          className="rounded-xl border border-warning-border bg-warning-soft px-4 py-3 text-xs text-warning-strong"
         >
           <strong className="font-bold">Some panels could not be loaded:</strong>{' '}
           {loadErrors.join(', ')}. The server may have restarted, or your session may have
@@ -663,12 +670,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           <div className="flex items-center gap-2 mb-2">
             <button
               onClick={onBackToWorkspace}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1D4ED8] hover:text-blue-900 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1D4ED8] hover:text-blue-deep transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to Workspace</span>
             </button>
-            <span className="text-slate-300">/</span>
+            <span className="text-line-strong">/</span>
             <span className="text-xs font-bold uppercase tracking-wider text-[#627D98]">
               Platform Command Center
             </span>
@@ -678,7 +685,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] font-['Space_Grotesk'] tracking-tight">
               Admin & Operations Dashboard
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-[#0B2545] border border-slate-300 shadow-2xs flex items-center gap-1">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-surface text-[#0B2545] border border-line-strong shadow-2xs flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#1D4ED8]" />
                 <span>Admin Session</span>
             </span>
@@ -692,7 +699,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           <button
             onClick={fetchAdminData}
             disabled={loading}
-            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[#0B2545] text-xs font-semibold shadow-xs cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl border border-line bg-white hover:bg-canvas text-[#0B2545] text-xs font-semibold shadow-xs cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1.5"
             title="Refresh stats and users"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#1D4ED8]' : ''}`} />
@@ -703,25 +710,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
 
       {/* Global Feedback Banner */}
       {feedbackMessage && (
-        <div className="p-3.5 rounded-xl bg-slate-900 text-white text-xs font-medium flex items-center justify-between shadow-md animate-in fade-in">
+        <div className="p-3.5 rounded-xl bg-ink text-white text-xs font-medium flex items-center justify-between shadow-md animate-in fade-in">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-[#1D4ED8] shrink-0" />
             <span>{feedbackMessage}</span>
           </div>
-          <button onClick={() => setFeedbackMessage(null)} className="text-slate-400 hover:text-white cursor-pointer">
+          <button onClick={() => setFeedbackMessage(null)} className="text-line-steel hover:text-white cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* ADMIN TABS NAVIGATION */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-line">
         <button
           onClick={() => setActiveTab('analytics')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
             activeTab === 'analytics'
               ? 'bg-[#0B2545] text-white shadow-xs'
-              : 'text-[#334E68] hover:bg-slate-100'
+              : 'text-[#334E68] hover:bg-surface'
           }`}
         >
           <BarChart3 className="w-4 h-4" />
@@ -733,7 +740,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
             activeTab === 'users'
               ? 'bg-[#0B2545] text-white shadow-xs'
-              : 'text-[#334E68] hover:bg-slate-100'
+              : 'text-[#334E68] hover:bg-surface'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -745,7 +752,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
             activeTab === 'llms'
               ? 'bg-[#0B2545] text-white shadow-xs'
-              : 'text-[#334E68] hover:bg-slate-100'
+              : 'text-[#334E68] hover:bg-surface'
           }`}
         >
           <Cpu className="w-4 h-4" />
@@ -757,7 +764,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
             activeTab === 'security'
               ? 'bg-[#0B2545] text-white shadow-xs'
-              : 'text-[#334E68] hover:bg-slate-100'
+              : 'text-[#334E68] hover:bg-surface'
           }`}
         >
           <ShieldAlert className="w-4 h-4" />
@@ -769,7 +776,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
             activeTab === 'monitoring'
               ? 'bg-[#0B2545] text-white shadow-xs'
-              : 'text-[#334E68] hover:bg-slate-100'
+              : 'text-[#334E68] hover:bg-surface'
           }`}
         >
           <Activity className="w-4 h-4" />
@@ -781,7 +788,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
             activeTab === 'settings'
               ? 'bg-[#0B2545] text-white shadow-xs'
-              : 'text-[#334E68] hover:bg-slate-100'
+              : 'text-[#334E68] hover:bg-surface'
           }`}
         >
           <Sliders className="w-4 h-4" />
@@ -797,7 +804,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           {/* KPI CARDS (Cohesive color palette) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* Card 1: Total Users & Pro Conversion */}
-            <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
+            <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
               <div className="flex items-center justify-between text-[#627D98]">
                 <span className="text-[11px] font-bold uppercase tracking-wider">Total Users</span>
                 <Users className="w-4 h-4 text-[#1D4ED8]" />
@@ -807,13 +814,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </div>
               <div className="text-[11px] text-[#334E68] flex items-center gap-1 font-semibold">
                 <span>{stats?.activeProMembers ?? users.filter((u) => u.currentPlan === 'PRO').length} Active Pro</span>
-                <span className="text-slate-300">•</span>
+                <span className="text-line-strong">•</span>
                 <span>{stats?.proAdoptionRate ?? 0}% Rate</span>
               </div>
             </div>
 
             {/* Card 2: Pro accounts */}
-            <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
+            <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
               <div className="flex items-center justify-between text-[#627D98]">
                 <span className="text-[11px] font-bold uppercase tracking-wider">Pro Accounts</span>
                 <CreditCard className="w-4 h-4 text-[#1D4ED8]" />
@@ -827,7 +834,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             </div>
 
             {/* Card 3: User Time Spent */}
-            <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
+            <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
               <div className="flex items-center justify-between text-[#627D98]">
                 <span className="text-[11px] font-bold uppercase tracking-wider">Avg Session Time</span>
                 <Clock className="w-4 h-4 text-[#1D4ED8]" />
@@ -843,7 +850,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             </div>
 
             {/* Card 4: Average keyword overlap */}
-            <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
+            <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
               <div className="flex items-center justify-between text-[#627D98]">
                 <span className="text-[11px] font-bold uppercase tracking-wider">Avg Keyword Match</span>
                 <Zap className="w-4 h-4 text-[#1D4ED8]" />
@@ -862,8 +869,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           {/* Secondary Analytics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Scans by Target Role Breakdown */}
-            <div className="glass-panel p-5 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div className="glass-panel p-5 rounded-2xl !bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-surface pb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#0B2545]">
                   Scans by Target Role
                 </span>
@@ -874,7 +881,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   Object.entries(stats.scansByRole).slice(0, 5).map(([role, count]) => (
                     <div key={role} className="flex items-center justify-between text-xs">
                       <span className="text-[#334E68] font-medium truncate max-w-[200px]">{role}</span>
-                      <span className="font-mono font-bold text-[#0B2545] bg-slate-100 px-2 py-0.5 rounded-md">
+                      <span className="font-mono font-bold text-[#0B2545] bg-surface px-2 py-0.5 rounded-md">
                         {count} {count === 1 ? 'scan' : 'scans'}
                       </span>
                     </div>
@@ -886,8 +893,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             </div>
 
             {/* Application Pipeline Status */}
-            <div className="glass-panel p-5 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div className="glass-panel p-5 rounded-2xl !bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-surface pb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#0B2545]">
                   Application Pipeline
                 </span>
@@ -896,12 +903,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                 </span>
               </div>
               <div className="space-y-2">
-                {['APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED'].map((stage) => {
+                {['SAVED', 'APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED'].map((stage) => {
                   const count = stats?.applicationsByStatus?.[stage] || 0;
                   return (
                     <div key={stage} className="flex items-center justify-between text-xs">
                       <span className="text-[#334E68] font-medium capitalize">{stage.toLowerCase()}</span>
-                      <span className="font-mono font-bold text-[#0B2545] bg-slate-100 px-2 py-0.5 rounded-md">
+                      <span className="font-mono font-bold text-[#0B2545] bg-surface px-2 py-0.5 rounded-md">
                         {count}
                       </span>
                     </div>
@@ -911,8 +918,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             </div>
 
             {/* LLM Token & Cost Utilization */}
-            <div className="glass-panel p-5 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div className="glass-panel p-5 rounded-2xl !bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-surface pb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#0B2545]">
                   Estimated AI Usage
                 </span>
@@ -950,7 +957,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
       {/* TAB 2: USER DIRECTORY & ACCESS CONTROL */}
       {/* ========================================================================= */}
       {activeTab === 'users' && (
-        <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-2xl border border-slate-200/80 shadow-[0_12px_32px_rgba(11,37,69,0.04)] space-y-4 animate-in fade-in">
+        <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-2xl border border-line/80 shadow-[0_12px_32px_rgba(11,37,69,0.04)] space-y-4 animate-in fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold font-['Space_Grotesk'] text-[#0B2545]">
@@ -970,11 +977,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   placeholder="Search email, name, role..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 rounded-xl text-xs border border-slate-200 bg-white focus:outline-none focus:border-[#1D4ED8] text-[#0B2545] w-48 sm:w-56"
+                  className="pl-8 pr-3 py-1.5 rounded-xl text-xs border border-line bg-white focus:outline-none focus:border-[#1D4ED8] text-[#0B2545] w-48 sm:w-56"
                 />
               </div>
 
-              <div className="flex items-center p-1 rounded-xl bg-slate-100 text-xs">
+              <div className="flex items-center p-1 rounded-xl bg-surface text-xs">
                 {(['all', 'pro', 'free', 'admin', 'banned'] as const).map((mode) => (
                   <button
                     key={mode}
@@ -996,7 +1003,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           <div className="overflow-x-auto max-w-full">
             <table className="w-full text-left text-xs min-w-[760px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
+                <tr className="border-b border-line bg-canvas/70 text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
                   <th className="py-3 px-4">User / Candidate</th>
                   <th className="py-3 px-3">Role</th>
                   <th className="py-3 px-3">Plan</th>
@@ -1006,7 +1013,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-surface-muted">
                 {filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-[#627D98] italic">
@@ -1017,26 +1024,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   filteredUsers.map((u) => {
                     const isOwner = isOwnerEmail(u.email);
                     return (
-                      <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
+                      <tr key={u.id} className="hover:bg-canvas/60 transition-colors">
                         <td className="py-3.5 px-4">
                           <div className="font-bold text-[#0B2545]">{u.email}</div>
                           <div className="text-[11px] text-[#627D98] flex items-center gap-1.5">
                             {u.displayName && <span>{u.displayName}</span>}
-                            <span className="font-mono text-[10px] text-slate-400">({u.id})</span>
+                            <span className="font-mono text-[10px] text-line-steel">({u.id})</span>
                           </div>
                         </td>
 
                         <td className="py-3.5 px-3">
                           {isOwner ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-[#0B2545] border border-slate-300">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-surface text-[#0B2545] border border-line-strong">
                               Owner
                             </span>
                           ) : u.isAdmin ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#1D4ED8] border border-blue-200">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-wash text-[#1D4ED8] border border-blue-pale">
                               Admin
                             </span>
                           ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-[#627D98]">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-surface text-[#627D98]">
                               Candidate
                             </span>
                           )}
@@ -1046,8 +1053,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               u.currentPlan === 'PRO'
-                                ? 'bg-blue-50 text-[#1D4ED8] border border-blue-200 font-bold'
-                                : 'bg-slate-100 text-[#627D98]'
+                                ? 'bg-blue-wash text-[#1D4ED8] border border-blue-pale font-bold'
+                                : 'bg-surface text-[#627D98]'
                             }`}
                           >
                             {u.currentPlan}
@@ -1056,11 +1063,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
 
                         <td className="py-3.5 px-3">
                           {u.isBanned ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-white">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-ink text-white">
                               Suspended
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-[#334E68]">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-surface text-[#334E68]">
                               Active
                             </span>
                           )}
@@ -1087,8 +1094,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                                 disabled={actionLoading === `admin-${u.id}`}
                                 className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                                   u.isAdmin
-                                    ? 'bg-slate-100 text-[#334E68] hover:bg-slate-200'
-                                    : 'bg-blue-50 text-[#1D4ED8] hover:bg-blue-100 border border-blue-200'
+                                    ? 'bg-surface text-[#334E68] hover:bg-line'
+                                    : 'bg-blue-wash text-[#1D4ED8] hover:bg-blue-wash border border-blue-pale'
                                 }`}
                                 title={u.isAdmin ? 'Revoke Admin' : 'Make Administrator'}
                               >
@@ -1103,8 +1110,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                                 disabled={actionLoading === `pro-${u.id}`}
                                 className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                                   u.currentPlan === 'PRO'
-                                    ? 'bg-slate-100 text-[#334E68] hover:bg-slate-200'
-                                    : 'bg-[#0B2545] text-white hover:bg-slate-800'
+                                    ? 'bg-surface text-[#334E68] hover:bg-line'
+                                    : 'bg-[#0B2545] text-white hover:bg-ink'
                                 }`}
                               >
                                 {u.currentPlan === 'PRO' ? 'Set Free' : 'Grant Pro'}
@@ -1118,8 +1125,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                                 disabled={actionLoading === `ban-${u.id}`}
                                 className={`p-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                                   u.isBanned
-                                    ? 'bg-slate-700 text-white'
-                                    : 'bg-slate-100 text-[#334E68] hover:bg-slate-200'
+                                    ? 'bg-ink-soft text-white'
+                                    : 'bg-surface text-[#334E68] hover:bg-line'
                                 }`}
                                 title={u.isBanned ? 'Unban User' : 'Ban User'}
                               >
@@ -1132,7 +1139,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                               <button
                                 onClick={() => handleAddCredits(u.id, 3)}
                                 disabled={actionLoading === `credits-${u.id}`}
-                                className="p-1.5 rounded-lg text-[10px] font-bold bg-slate-100 text-[#0B2545] hover:bg-slate-200 cursor-pointer"
+                                className="p-1.5 rounded-lg text-[10px] font-bold bg-surface text-[#0B2545] hover:bg-line cursor-pointer"
                                 title="Add 3 scan credits"
                               >
                                 <Plus className="w-3.5 h-3.5" />
@@ -1142,7 +1149,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                             {/* Edit Modal Button */}
                             <button
                               onClick={() => openEditModal(u)}
-                              className="p-1.5 rounded-lg text-[10px] font-bold bg-slate-100 text-[#0B2545] hover:bg-slate-200 cursor-pointer"
+                              className="p-1.5 rounded-lg text-[10px] font-bold bg-surface text-[#0B2545] hover:bg-line cursor-pointer"
                               title="Edit user details"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
@@ -1153,7 +1160,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                               <button
                                 onClick={() => handleDeleteUser(u.id, u.email)}
                                 disabled={actionLoading === `del-${u.id}`}
-                                className="p-1.5 rounded-lg text-[10px] font-bold text-slate-400 hover:text-slate-800 cursor-pointer"
+                                className="p-1.5 rounded-lg text-[10px] font-bold text-line-steel hover:text-ink cursor-pointer"
                                 title="Delete user permanently"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1197,8 +1204,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           </div>
 
           {/* Task Bindings Section */}
-          <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-surface pb-3">
               <div className="flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-[#1D4ED8]" />
                 <h3 className="text-sm font-bold uppercase tracking-wider text-[#0B2545]">
@@ -1210,7 +1217,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(bindings).map(([taskKey, binding]) => (
-                <div key={taskKey} className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-3">
+                <div key={taskKey} className="p-4 rounded-xl bg-canvas/80 border border-line/80 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-[#0B2545] text-xs">{binding.taskLabel}</span>
                     <span className="font-mono text-[10px] text-[#627D98] uppercase">{taskKey}</span>
@@ -1224,7 +1231,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                       <select
                         value={binding.primaryModelId}
                         onChange={(e) => handleSaveBinding(taskKey, e.target.value, binding.fallbackModelId)}
-                        className="w-full p-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-[#0B2545]"
+                        className="w-full p-1.5 rounded-lg border border-line bg-white text-xs font-semibold text-[#0B2545]"
                       >
                         {llms.filter((model) => model.enabled && model.configured && model.supported).map((model) => (
                           <option key={model.id} value={model.id}>
@@ -1246,7 +1253,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                       <select
                         value={binding.fallbackModelId}
                         onChange={(e) => handleSaveBinding(taskKey, binding.primaryModelId, e.target.value)}
-                        className="w-full p-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-[#0B2545]"
+                        className="w-full p-1.5 rounded-lg border border-line bg-white text-xs font-semibold text-[#0B2545]"
                       >
                         {llms.filter((model) => model.enabled && model.configured && model.supported).map((model) => (
                           <option key={model.id} value={model.id}>
@@ -1267,7 +1274,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           </div>
 
           {/* Configured Models Table */}
-          <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
+          <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-[#0B2545]">
               Model Registry ({llms.length})
             </h3>
@@ -1275,7 +1282,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs min-w-[620px]">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
+                  <tr className="border-b border-line bg-canvas/70 text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
                     <th className="py-2.5 px-3">Model Name</th>
                     <th className="py-2.5 px-3">Provider</th>
                     <th className="py-2.5 px-3">Model Identifier</th>
@@ -1286,15 +1293,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                     <th className="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-surface-muted">
                   {llms.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50/50">
+                    <tr key={m.id} className="hover:bg-canvas/50">
                       <td className="py-3 px-3 font-bold text-[#0B2545]">{m.name}</td>
                       <td className="py-3 px-3 uppercase text-[10px] font-semibold text-[#627D98]">{m.provider}</td>
                       <td className="py-3 px-3 font-mono text-[#334E68]">{m.modelId}</td>
                       <td className="py-3 px-3 font-mono text-[#334E68]">{m.contextWindow}</td>
                       <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-[#334E68]">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-surface text-[#334E68]">
                           {m.latencyTier}
                         </span>
                       </td>
@@ -1302,7 +1309,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                         {m.usedBy?.length ? m.usedBy.join(', ') : 'Not bound'}
                       </td>
                       <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-[#334E68] border border-slate-200">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-surface text-[#334E68] border border-line">
                           {!m.supported ? 'Unsupported provider' : !m.enabled ? 'Disabled' : m.configured ? 'Key configured' : 'Missing server key'}
                         </span>
                       </td>
@@ -1310,13 +1317,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => handleToggleLLMStatus(m.id, m.enabled)}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-[#334E68] hover:bg-slate-200 cursor-pointer"
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-surface text-[#334E68] hover:bg-line cursor-pointer"
                           >
                             {m.enabled ? 'Disable' : 'Enable'}
                           </button>
                           <button
                             onClick={() => handleDeleteLLM(m.id, m.name)}
-                            className="p-1 rounded-lg text-slate-400 hover:text-slate-800 cursor-pointer"
+                            className="p-1 rounded-lg text-line-steel hover:text-ink cursor-pointer"
                             title="Delete LLM"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1339,15 +1346,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
         <div className="space-y-6 animate-in fade-in">
           {/* Status Matrix */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-2">
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-[#0B2545] text-xs">Prompt Injection Shield</span>
                 <button
                   onClick={() => handleToggleSetting('promptInjectionShield', settings?.promptInjectionShield)}
                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
                     settings?.promptInjectionShield
-                      ? 'bg-blue-50 text-[#1D4ED8] border border-blue-200'
-                      : 'bg-slate-100 text-[#627D98]'
+                      ? 'bg-blue-wash text-[#1D4ED8] border border-blue-pale'
+                      : 'bg-surface text-[#627D98]'
                   }`}
                 >
                   {settings?.promptInjectionShield ? 'Active' : 'Disabled'}
@@ -1358,10 +1365,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-2">
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-[#0B2545] text-xs">5MB Upload File Sandbox</span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#1D4ED8] border border-blue-200">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-wash text-[#1D4ED8] border border-blue-pale">
                   Enforced
                 </span>
               </div>
@@ -1370,10 +1377,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-2">
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-[#0B2545] text-xs">Client Rate Limiter</span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#1D4ED8] border border-blue-200">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-wash text-[#1D4ED8] border border-blue-pale">
                   30 Req / Min
                 </span>
               </div>
@@ -1383,9 +1390,73 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             </div>
           </div>
 
+          {/*
+            Pending Pro upgrade requests.
+
+            These are read from the audit log written by
+            POST /api/payments/request. The reference in each row is HMAC-signed,
+            so a message typed by hand in Telegram cannot carry a valid one — that
+            is what makes it safe to upgrade the account named in the row.
+          */}
+          {upgradeRequests.length > 0 && (
+            <div className="rounded-2xl border border-[#93C5FD]/60 bg-blue-wash/40 p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-[#93C5FD]/40 pb-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-[#1D4ED8]" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-[#0B2545]">
+                    Pro upgrade requests ({upgradeRequests.length})
+                  </h3>
+                </div>
+                <span className="text-[11px] text-[#627D98]">Newest first</span>
+              </div>
+
+              <ul className="space-y-2">
+                {upgradeRequests.map((request) => (
+                  <li
+                    key={request.id}
+                    className="rounded-xl border border-line bg-white p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#0B2545] break-all">
+                        {request.actorEmail || 'unknown email'}
+                      </p>
+                      <p className="text-[11px] text-[#627D98] font-mono break-all mt-0.5">
+                        uid: {request.targetUserId || '—'}
+                      </p>
+                      <p className="text-[11px] text-[#627D98] mt-0.5">
+                        {new Date(request.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard
+                          .writeText(request.targetUserId || '')
+                          .then(() => setCopiedUserId(request.targetUserId || ''))
+                          .catch(() => {});
+                      }}
+                      className="shrink-0 rounded-lg border border-line bg-canvas px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0B2545] hover:bg-[#1D4ED8] hover:text-white transition-colors cursor-pointer"
+                    >
+                      {copiedUserId === (request.targetUserId || '') && request.targetUserId
+                        ? 'Copied UID'
+                        : 'Copy UID'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="text-[11px] text-[#334E68] leading-relaxed border-t border-[#93C5FD]/40 pt-3">
+                Activate with <span className="font-bold">Admin -&gt; Set Plan</span> above. Confirm
+                the payment reference the user quotes matches a request in this list before
+                upgrading — a reference cannot be forged, but a hand-written message can claim any
+                email.
+              </p>
+            </div>
+          )}
+
           {/* Security Audit Log Table */}
-          <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-surface pb-3">
               <div className="flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-[#1D4ED8]" />
                 <h3 className="text-sm font-bold uppercase tracking-wider text-[#0B2545]">
@@ -1398,14 +1469,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs min-w-[620px]">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
+                  <tr className="border-b border-line bg-canvas/70 text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
                     <th className="py-2.5 px-3">Timestamp</th>
                     <th className="py-2.5 px-3">Event</th>
                     <th className="py-2.5 px-3">Severity</th>
                     <th className="py-2.5 px-3">Details</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-surface-muted">
                   {securityLogs.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-6 text-center text-[#627D98]">
@@ -1414,7 +1485,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                     </tr>
                   ) : (
                     securityLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50/50">
+                      <tr key={log.id} className="hover:bg-canvas/50">
                         <td className="py-2.5 px-3 font-mono text-[11px] text-[#627D98]">
                           {new Date(log.timestamp).toLocaleTimeString()}
                         </td>
@@ -1423,10 +1494,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               log.severity === 'critical'
-                                ? 'bg-slate-800 text-white'
+                                ? 'bg-ink text-white'
                                 : log.severity === 'warning'
-                                ? 'bg-amber-50 text-amber-900 border border-amber-200'
-                                : 'bg-slate-100 text-[#334E68]'
+                                ? 'bg-warning-soft text-warning-strong border border-warning-border'
+                                : 'bg-surface text-[#334E68]'
                             }`}
                           >
                             {log.severity}
@@ -1452,7 +1523,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             <>
               {/* Uptime & Process Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
                     Server Uptime
                   </span>
@@ -1462,7 +1533,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   <div className="text-[11px] text-[#334E68]">Node {health.nodeVersion}</div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
                     Memory RSS
                   </span>
@@ -1474,7 +1545,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
                     Process Host
                   </span>
@@ -1484,7 +1555,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   <div className="text-[11px] text-[#334E68]">PID {health.pid}</div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+                <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#627D98]">
                     Error Rate
                   </span>
@@ -1498,19 +1569,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </div>
 
               {/* Subsystems Matrix */}
-              <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
+              <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-3">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-[#0B2545]">
                   Subsystem Health Matrix
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   {(health.services || []).map((svc) => (
-                    <div key={svc.name} className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center justify-between">
+                    <div key={svc.name} className="p-3.5 rounded-xl bg-canvas/80 border border-line/80 flex items-center justify-between">
                       <div>
                         <div className="font-bold text-[#0B2545] text-xs">{svc.name}</div>
                         <div className="text-[11px] text-[#627D98] font-mono">{svc.latencyMs}ms response latency</div>
                       </div>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#1D4ED8] border border-blue-200">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-wash text-[#1D4ED8] border border-blue-pale">
                         {svc.status}
                       </span>
                     </div>
@@ -1519,9 +1590,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </div>
             </>
           ) : (
-            <div className="p-8 sm:p-12 text-center rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200/70">
-                <AlertTriangle className="w-6 h-6 text-amber-600" />
+            <div className="p-8 sm:p-12 text-center rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-warning-soft text-warning flex items-center justify-center mx-auto border border-warning-border/70">
+                <AlertTriangle className="w-6 h-6 text-warning" />
               </div>
               <h3 className="text-lg font-bold text-[#0B2545] font-['Space_Grotesk']">
                 System health unavailable
@@ -1545,7 +1616,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
       {/* TAB 6: GLOBAL APPLICATION SETTINGS */}
       {/* ========================================================================= */}
       {activeTab === 'settings' && (
-        <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-6 animate-in fade-in">
+        <div className="glass-panel p-5 sm:p-6 rounded-2xl !bg-white/80 backdrop-blur-xl border border-line/80 shadow-xs space-y-6 animate-in fade-in">
           <div>
             <h2 className="text-lg font-bold font-['Space_Grotesk'] text-[#0B2545]">
               Platform & MicroSaaS Configuration
@@ -1556,7 +1627,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="p-4 rounded-xl bg-canvas border border-line space-y-2">
               <label className="text-xs font-bold text-[#0B2545] block">
                 Free Tier Monthly Scan Limit
               </label>
@@ -1567,7 +1638,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   onChange={(e) =>
                     setSettings((prev) => prev ? { ...prev, freeTierMonthlyLimit: Number(e.target.value) } : prev)
                   }
-                  className="w-24 p-2 rounded-lg border border-slate-300 bg-white font-mono text-xs font-bold"
+                  className="w-24 p-2 rounded-lg border border-line-strong bg-white font-mono text-xs font-bold"
                 />
                 <button
                   onClick={() => handleToggleSetting('freeTierMonthlyLimit' as any, (settings?.freeTierMonthlyLimit || FREE_SCAN_LIMIT) - 1)}
@@ -1581,7 +1652,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="p-4 rounded-xl bg-canvas border border-line space-y-2">
               <label className="text-xs font-bold text-[#0B2545] block">
                 Pro Monthly Price (INR)
               </label>
@@ -1592,7 +1663,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   onChange={(e) =>
                     setSettings((prev) => prev ? { ...prev, proPriceInr: Number(e.target.value) } : prev)
                   }
-                  className="w-24 p-2 rounded-lg border border-slate-300 bg-white font-mono text-xs font-bold"
+                  className="w-24 p-2 rounded-lg border border-line-strong bg-white font-mono text-xs font-bold"
                 />
                 <button
                   onClick={() => handleToggleSetting('proPriceInr' as any, (settings?.proPriceInr || PRO_PRICE_INR) - 1)}
@@ -1606,7 +1677,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+            <div className="p-4 rounded-xl bg-canvas border border-line flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-[#0B2545] block">Maintenance Mode</span>
                 <p className="text-[11px] text-[#627D98]">
@@ -1616,14 +1687,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               <button
                 onClick={() => handleToggleSetting('maintenanceMode', settings?.maintenanceMode)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
-                  settings?.maintenanceMode ? 'bg-slate-800 text-white' : 'bg-slate-200 text-[#334E68]'
+                  settings?.maintenanceMode ? 'bg-ink text-white' : 'bg-line text-[#334E68]'
                 }`}
               >
                 {settings?.maintenanceMode ? 'ACTIVE' : 'OFF'}
               </button>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+            <div className="p-4 rounded-xl bg-canvas border border-line flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-[#0B2545] block">Prompt Injection Shield</span>
                 <p className="text-[11px] text-[#627D98]">
@@ -1633,7 +1704,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               <button
                 onClick={() => handleToggleSetting('promptInjectionShield', settings?.promptInjectionShield)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
-                  settings?.promptInjectionShield ? 'bg-[#0B2545] text-white' : 'bg-slate-200 text-[#334E68]'
+                  settings?.promptInjectionShield ? 'bg-[#0B2545] text-white' : 'bg-line text-[#334E68]'
                 }`}
               >
                 {settings?.promptInjectionShield ? 'ENABLED' : 'DISABLED'}
@@ -1648,8 +1719,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
       {/* ========================================================================= */}
       {editingUser && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="glass-panel p-6 rounded-2xl !bg-white border border-slate-200 shadow-2xl w-full max-w-lg space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="glass-panel p-6 rounded-2xl !bg-white border border-line shadow-2xl w-full max-w-lg space-y-4">
+            <div className="flex items-center justify-between border-b border-surface pb-3">
               <div>
                 <h3 className="text-base font-bold text-[#0B2545] font-['Space_Grotesk']">
                   Edit User Profile
@@ -1658,7 +1729,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </div>
               <button
                 onClick={() => setEditingUser(null)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
+                className="text-line-steel hover:text-ink-soft cursor-pointer p-1"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1671,7 +1742,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   type="text"
                   value={editFormData.displayName}
                   onChange={(e) => setEditFormData({ ...editFormData, displayName: e.target.value })}
-                  className="w-full p-2 rounded-xl border border-slate-200 text-xs font-medium"
+                  className="w-full p-2 rounded-xl border border-line text-xs font-medium"
                 />
               </div>
 
@@ -1681,7 +1752,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   <select
                     value={editFormData.currentPlan}
                     onChange={(e) => setEditFormData({ ...editFormData, currentPlan: e.target.value as any })}
-                    className="w-full p-2 rounded-xl border border-slate-200 text-xs font-semibold"
+                    className="w-full p-2 rounded-xl border border-line text-xs font-semibold"
                   >
                     <option value="FREE">FREE</option>
                     <option value="PRO">PRO</option>
@@ -1693,7 +1764,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   <select
                     value={editFormData.role}
                     onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as any })}
-                    className="w-full p-2 rounded-xl border border-slate-200 text-xs font-semibold"
+                    className="w-full p-2 rounded-xl border border-line text-xs font-semibold"
                   >
                     <option value="USER">USER (Candidate)</option>
                     <option value="ADMIN">ADMIN</option>
@@ -1708,17 +1779,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   type="number"
                   value={editFormData.monthlyScansUsed}
                   onChange={(e) => setEditFormData({ ...editFormData, monthlyScansUsed: Number(e.target.value) })}
-                  className="w-full p-2 rounded-xl border border-slate-200 font-mono text-xs font-bold"
+                  className="w-full p-2 rounded-xl border border-line font-mono text-xs font-bold"
                 />
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="p-3 rounded-xl bg-canvas border border-line space-y-2">
                 <label className="flex items-center gap-2 font-bold text-[#0B2545] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={editFormData.isBanned}
                     onChange={(e) => setEditFormData({ ...editFormData, isBanned: e.target.checked })}
-                    className="rounded border-slate-300"
+                    className="rounded border-line-strong"
                   />
                   <span>Suspend / Ban Account</span>
                 </label>
@@ -1728,23 +1799,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                     placeholder="Suspension reason..."
                     value={editFormData.banReason}
                     onChange={(e) => setEditFormData({ ...editFormData, banReason: e.target.value })}
-                    className="w-full p-2 rounded-lg border border-slate-200 text-xs"
+                    className="w-full p-2 rounded-lg border border-line text-xs"
                   />
                 )}
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface">
               <button
                 onClick={() => setEditingUser(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#334E68] font-bold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-surface hover:bg-line text-[#334E68] font-bold text-xs cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={saveEditUser}
                 disabled={actionLoading === 'save-edit'}
-                className="px-4 py-2 rounded-xl bg-[#0B2545] hover:bg-slate-800 text-white font-bold text-xs cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-[#0B2545] hover:bg-ink text-white font-bold text-xs cursor-pointer disabled:opacity-50"
               >
                 Save Changes
               </button>
@@ -1760,9 +1831,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCreateLLM}
-            className="glass-panel p-6 rounded-2xl !bg-white border border-slate-200 shadow-2xl w-full max-w-lg space-y-4"
+            className="glass-panel p-6 rounded-2xl !bg-white border border-line shadow-2xl w-full max-w-lg space-y-4"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between border-b border-surface pb-3">
               <div>
                 <h3 className="text-base font-bold text-[#0B2545] font-['Space_Grotesk']">
                   Add New LLM Engine
@@ -1772,7 +1843,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               <button
                 type="button"
                 onClick={() => setShowAddLLMModal(false)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
+                className="text-line-steel hover:text-ink-soft cursor-pointer p-1"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1787,7 +1858,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   value={newLLMData.name}
                   onChange={(e) => setNewLLMData({ ...newLLMData, name: e.target.value })}
                   required
-                  className="w-full p-2 rounded-xl border border-slate-200 text-xs"
+                  className="w-full p-2 rounded-xl border border-line text-xs"
                 />
               </div>
 
@@ -1797,7 +1868,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   <select
                     value={newLLMData.provider}
                     onChange={(e) => setNewLLMData({ ...newLLMData, provider: e.target.value as any })}
-                    className="w-full p-2 rounded-xl border border-slate-200 text-xs font-semibold"
+                    className="w-full p-2 rounded-xl border border-line text-xs font-semibold"
                   >
                     <option value="groq">Groq</option>
                     <option value="gemini">Google Gemini</option>
@@ -1814,7 +1885,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                     value={newLLMData.modelId}
                     onChange={(e) => setNewLLMData({ ...newLLMData, modelId: e.target.value })}
                     required
-                    className="w-full p-2 rounded-xl border border-slate-200 font-mono text-xs"
+                    className="w-full p-2 rounded-xl border border-line font-mono text-xs"
                   />
                 </div>
               </div>
@@ -1827,7 +1898,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                     placeholder="e.g., 128k"
                     value={newLLMData.contextWindow}
                     onChange={(e) => setNewLLMData({ ...newLLMData, contextWindow: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-slate-200 font-mono text-xs"
+                    className="w-full p-2 rounded-xl border border-line font-mono text-xs"
                   />
                 </div>
 
@@ -1836,7 +1907,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                   <select
                     value={newLLMData.latencyTier}
                     onChange={(e) => setNewLLMData({ ...newLLMData, latencyTier: e.target.value as any })}
-                    className="w-full p-2 rounded-xl border border-slate-200 text-xs"
+                    className="w-full p-2 rounded-xl border border-line text-xs"
                   >
                     <option value="sub-second">sub-second (&lt;500ms)</option>
                     <option value="standard">standard (~1s)</option>
@@ -1847,18 +1918,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
 
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface">
               <button
                 type="button"
                 onClick={() => setShowAddLLMModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#334E68] font-bold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-surface hover:bg-line text-[#334E68] font-bold text-xs cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={actionLoading === 'create-llm'}
-                className="px-4 py-2 rounded-xl bg-[#0B2545] hover:bg-slate-800 text-white font-bold text-xs cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-[#0B2545] hover:bg-ink text-white font-bold text-xs cursor-pointer disabled:opacity-50"
               >
                 Register Model
               </button>

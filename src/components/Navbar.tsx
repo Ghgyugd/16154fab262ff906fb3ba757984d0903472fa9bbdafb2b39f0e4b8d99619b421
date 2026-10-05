@@ -9,7 +9,7 @@ import {
   ChevronDown,
   ArrowLeft,
   FileText,
-  User as UserIcon,
+  User as
   ShieldCheck,
   CreditCard,
 } from 'lucide-react';
@@ -32,7 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDeleteData,
   isSignedIn = false,
 }) => {
-  const { user, clerkUser, logout, setAuthModalOpen } = useAuth();
+  const { user, identity, logout, setAuthModalOpen } = useAuth();
   const { scrollTo } = useLenisScroll();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
@@ -105,12 +105,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const userEmail =
-    clerkUser?.email ||
+    identity?.email ||
     user?.email ||
     (user?.isAnonymous ? 'Guest Candidate' : 'Candidate Profile');
 
   const userDisplayName =
-    clerkUser?.displayName ||
+    identity?.displayName ||
     user?.displayName ||
     (userEmail.includes('@') ? userEmail.split('@')[0] : userEmail);
 
@@ -118,7 +118,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     .slice(0, 2)
     .toUpperCase();
 
-  const userAvatarUrl = clerkUser?.photoURL || user?.photoURL;
+  const userAvatarUrl = identity?.photoURL || user?.photoURL;
 
   return (
     <header className="glass-panel sticky top-0 z-50 w-full max-w-full overflow-x-clip !bg-white/75 backdrop-blur-2xl border-b border-white/80 shadow-[0_8px_32px_rgba(11,37,69,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all">
@@ -134,12 +134,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
 
           {isWorkspace && (
-            <div className="hidden sm:flex items-center gap-1.5 pl-2 sm:pl-3 border-l border-slate-200/80">
+            <div className="hidden sm:flex items-center gap-1.5 pl-2 sm:pl-3 border-l border-[#CBD5E1]/70">
               <span
                 className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs whitespace-nowrap ${
                   currentTab === 'admin'
-                    ? 'bg-amber-50 text-amber-900 border-amber-200'
-                    : 'bg-blue-50/80 text-[#1D4ED8] border-blue-200/60'
+                    ? 'bg-warning-soft text-warning-strong border-warning-border'
+                    : 'bg-blue-wash text-blue-core border-[#93C5FD]/60'
                 }`}
               >
                 {currentTab === 'admin' ? 'Admin Portal' : 'Workspace'}
@@ -157,7 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setCurrentTab('landing');
                 window.location.hash = '';
               }}
-              className="hidden md:inline-flex items-center gap-1 text-xs font-semibold text-[#334E68] hover:text-[#0B2545] transition-colors cursor-pointer py-1.5 px-3 rounded-full hover:bg-slate-100/80 border border-slate-200/60 whitespace-nowrap"
+              className="hidden md:inline-flex items-center gap-1 text-xs font-semibold text-[#334E68] hover:text-[#0B2545] transition-colors cursor-pointer py-1.5 px-3 rounded-full hover:bg-surface/80 border border-line/60 whitespace-nowrap"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to Overview</span>
@@ -170,14 +170,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 !isPro ? 'cursor-pointer hover:shadow-xs' : ''
               } ${
                 isPro
-                  ? 'bg-blue-50 text-blue-800 border-blue-200'
-                  : 'bg-blue-50/90 text-[#0B2545] border-blue-200/80'
+                  ? 'bg-blue-wash text-[#0B2545] border-[#93C5FD]/60'
+                  : 'bg-blue-wash text-[#0B2545] border-[#93C5FD]/60'
               }`}
               title={isPro ? 'Pro Active' : 'Click to upgrade'}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  isPro ? 'bg-blue-500 animate-pulse' : 'bg-[#1D4ED8]'
+                  isPro ? 'bg-success animate-pulse' : 'bg-blue-core'
                 }`}
               />
               <span className="whitespace-nowrap">
@@ -208,7 +208,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <img
                     src={userAvatarUrl}
                     alt={userDisplayName}
-                    className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
+                    className="w-7 h-7 rounded-full object-cover border border-line shrink-0"
                   />
                 ) : (
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1D4ED8] to-[#2563EB] text-white flex items-center justify-center text-xs font-bold shadow-xs shrink-0">
@@ -231,12 +231,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               {profileDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white/95 backdrop-blur-2xl border border-white/90 shadow-[0_20px_50px_rgba(11,37,69,0.18)] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                   {/* User Info Header */}
-                  <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+                  <div className="px-4 py-3 border-b border-[#E2E8F0] flex items-center gap-3">
                     {userAvatarUrl ? (
                       <img
                         src={userAvatarUrl}
                         alt={userDisplayName}
-                        className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
+                        className="w-10 h-10 rounded-full object-cover border border-line shrink-0"
                       />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1D4ED8] to-[#2563EB] text-white flex items-center justify-center text-sm font-bold shadow-2xs shrink-0">
@@ -254,7 +254,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   {/* Plan Details & Upgrade Badge inside Dropdown */}
-                  <div className="px-4 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
+                  <div className="px-4 py-2.5 bg-canvas/70 border-b border-surface flex items-center justify-between">
                     <div>
                       <span className="text-[10px] font-bold text-[#627D98] uppercase tracking-wider block">
                         Active Plan
@@ -262,7 +262,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="text-xs font-bold text-[#0B2545] flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
                         <span
                           className={`w-2 h-2 rounded-full ${
-                            isPro ? 'bg-blue-500 animate-pulse' : 'bg-[#1D4ED8]'
+                            isPro ? 'bg-success animate-pulse' : 'bg-blue-core'
                           }`}
                         />
                         {isPro ? 'Pro Member' : `Free Tier (${creditsRemaining}/${FREE_SCAN_LIMIT} Scans)`}
@@ -291,7 +291,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setCurrentTab('admin');
                           window.location.hash = 'admin';
                         }}
-                        className="w-full text-left px-4 py-2 text-xs font-bold text-[#1D4ED8] hover:bg-blue-50/80 flex items-center justify-between cursor-pointer transition-colors bg-blue-50/40 border-b border-blue-100/70"
+                        className="w-full text-left px-4 py-2 text-xs font-bold text-[#1D4ED8] hover:bg-blue-wash flex items-center justify-between cursor-pointer transition-colors bg-blue-wash/40 border-b border-blue-wash/70"
                       >
                         <div className="flex items-center gap-2">
                           <ShieldCheck className="w-3.5 h-3.5 text-[#1D4ED8]" />
@@ -309,7 +309,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setCurrentTab('landing');
                         window.location.hash = '';
                       }}
-                      className="w-full text-left px-4 py-2 text-xs font-semibold text-[#334E68] hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                      className="w-full text-left px-4 py-2 text-xs font-semibold text-[#334E68] hover:bg-[#F0F4F8] flex items-center gap-2 cursor-pointer transition-colors"
                     >
                       <FileText className="w-3.5 h-3.5 text-[#627D98]" />
                       <span>Back to Landing Overview</span>
@@ -320,7 +320,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setProfileDropdownOpen(false);
                         onOpenPaywall();
                       }}
-                      className="w-full text-left px-4 py-2 text-xs font-semibold text-[#334E68] hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                      className="w-full text-left px-4 py-2 text-xs font-semibold text-[#334E68] hover:bg-[#F0F4F8] flex items-center gap-2 cursor-pointer transition-colors"
                     >
                       <CreditCard className="w-3.5 h-3.5 text-[#627D98]" />
                       <span>Plan & Billing</span>
@@ -331,7 +331,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setProfileDropdownOpen(false);
                         onOpenDeleteData();
                       }}
-                      className="w-full text-left px-4 py-2 text-xs font-semibold text-[#334E68] hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                      className="w-full text-left px-4 py-2 text-xs font-semibold text-[#334E68] hover:bg-[#F0F4F8] flex items-center gap-2 cursor-pointer transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-[#627D98]" />
                       <span>Privacy & Delete My Data</span>
@@ -339,12 +339,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   {/* Firebase Sign-Out */}
-                  <div className="pt-1 mt-1 border-t border-slate-100">
+                  <div className="pt-1 mt-1 border-t border-[#E2E8F0]">
                     <button
                       onClick={handleSignOut}
-                      className="w-full text-left px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer transition-colors"
+                      className="w-full text-left px-4 py-2 text-xs font-semibold text-danger hover:bg-danger-soft flex items-center gap-2 cursor-pointer transition-colors"
                     >
-                      <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                      <LogOut className="w-3.5 h-3.5 text-danger" />
                       <span>Sign Out / Reset Session</span>
                     </button>
                   </div>
@@ -386,12 +386,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                       !isPro ? 'cursor-pointer hover:shadow-xs' : ''
                     } ${
                       isPro
-                        ? 'bg-blue-50 text-blue-800 border-blue-200'
-                        : 'bg-blue-50/90 text-[#0B2545] border-blue-200/80'
+                        ? 'bg-blue-wash text-[#0B2545] border-[#93C5FD]/60'
+                        : 'bg-blue-wash text-[#0B2545] border-[#93C5FD]/60'
                     }`}
                   >
                     <span
-                      className={`w-1.5 h-1.5 rounded-full ${isPro ? 'bg-blue-500' : 'bg-[#1D4ED8]'}`}
+                      className={`w-1.5 h-1.5 rounded-full ${isPro ? 'bg-blue-bright' : 'bg-[#1D4ED8]'}`}
                     />
                     <span className="whitespace-nowrap">
                       {isPro ? 'Pro Active' : `Free Tier • ${creditsRemaining}/${FREE_SCAN_LIMIT} Scans`}
@@ -429,7 +429,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {profileDropdownOpen && (
                       <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white/95 backdrop-blur-2xl border border-white/90 shadow-2xl py-2 z-50">
-                        <div className="px-4 py-2 border-b border-slate-100">
+                        <div className="px-4 py-2 border-b border-surface">
                           <p className="text-xs font-bold text-[#0B2545] truncate">
                             {userDisplayName}
                           </p>
@@ -442,7 +442,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               setCurrentTab('admin');
                               window.location.hash = 'admin';
                             }}
-                            className="w-full text-left px-4 py-2 text-xs font-bold text-[#1D4ED8] hover:bg-blue-50/80 flex items-center justify-between cursor-pointer transition-colors bg-blue-50/40 border-b border-blue-100/70"
+                            className="w-full text-left px-4 py-2 text-xs font-bold text-[#1D4ED8] hover:bg-blue-wash flex items-center justify-between cursor-pointer transition-colors bg-blue-wash/40 border-b border-blue-wash/70"
                           >
                             <div className="flex items-center gap-2">
                               <ShieldCheck className="w-3.5 h-3.5 text-[#1D4ED8]" />
@@ -455,9 +455,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                         )}
                         <button
                           onClick={handleSignOut}
-                          className="w-full text-left px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer transition-colors"
+                          className="w-full text-left px-4 py-2 text-xs font-semibold text-danger hover:bg-danger-soft flex items-center gap-2 cursor-pointer transition-colors"
                         >
-                          <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                          <LogOut className="w-3.5 h-3.5 text-danger" />
                           <span>Sign Out</span>
                         </button>
                       </div>
@@ -469,7 +469,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     type="button"
                     onClick={() => setAuthModalOpen(true)}
-                    className="px-3.5 py-2 rounded-full font-bold text-xs uppercase tracking-wider text-[#334E68] hover:text-[#0B2545] hover:bg-slate-100/80 transition-all cursor-pointer whitespace-nowrap"
+                    className="px-3.5 py-2 rounded-full font-bold text-xs uppercase tracking-wider text-[#334E68] hover:text-[#0B2545] hover:bg-[#F0F4F8] transition-all cursor-pointer whitespace-nowrap"
                   >
                     Sign In
                   </button>
@@ -497,7 +497,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-lg text-[#0B2545] hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-2 rounded-lg text-[#0B2545] hover:bg-surface transition-colors cursor-pointer"
                 aria-label="Toggle Navigation Menu"
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -509,22 +509,22 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Drawer */}
       {!isWorkspace && mobileMenuOpen && (
-        <div className="md:hidden px-4 pt-3 pb-6 border-t border-slate-200/80 bg-white/95 backdrop-blur-2xl shadow-xl flex flex-col gap-3 text-sm font-semibold text-[#0B2545]">
+        <div className="md:hidden px-4 pt-3 pb-6 border-t border-[#CBD5E1]/80 bg-white/95 backdrop-blur-2xl shadow-xl flex flex-col gap-3 text-sm font-semibold text-[#0B2545]">
           <button
             onClick={() => handleNavClick('#how-it-works')}
-            className="text-left py-2 px-3 rounded-lg hover:bg-slate-100 transition-colors"
+            className="text-left py-2 px-3 rounded-lg hover:bg-surface transition-colors"
           >
             How It Works
           </button>
           <button
             onClick={() => handleNavClick('#capabilities')}
-            className="text-left py-2 px-3 rounded-lg hover:bg-slate-100 transition-colors"
+            className="text-left py-2 px-3 rounded-lg hover:bg-surface transition-colors"
           >
             Features
           </button>
           <button
             onClick={() => handleNavClick('#pricing')}
-            className="text-left py-2 px-3 rounded-lg hover:bg-slate-100 transition-colors"
+            className="text-left py-2 px-3 rounded-lg hover:bg-surface transition-colors"
           >
             Pricing
           </button>
@@ -536,7 +536,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setMobileMenuOpen(false);
                   setAuthModalOpen(true);
                 }}
-                className="w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-[#0B2545] bg-slate-100/90 hover:bg-slate-200/80 border border-slate-200 transition-colors text-center cursor-pointer"
+                className="w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-[#0B2545] bg-surface/90 hover:bg-[#E2E8F0] border border-[#CBD5E1] transition-colors text-center cursor-pointer"
               >
                 Sign In to Account
               </button>

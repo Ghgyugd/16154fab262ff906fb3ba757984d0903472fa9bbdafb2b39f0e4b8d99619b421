@@ -57,7 +57,13 @@ export interface SecurityLog {
     | 'RATE_LIMIT_HIT'
     | 'LLM_ROUTED'
     | 'ADMIN_LOGIN'
-    | 'CREDITS_UPDATED';
+    | 'CREDITS_UPDATED'
+    | 'PRO_UPGRADE_REQUESTED'
+    | 'USER_REGISTERED'
+    | 'LOGIN_SUCCESS'
+    | 'LOGIN_FAILED'
+    | 'PASSWORD_CHANGED'
+    | 'PASSWORD_SET';
   severity: 'info' | 'warning' | 'critical';
   details: string;
   ip?: string;
@@ -109,18 +115,107 @@ export interface TailoredResult {
   tailored_resume_text: string;
   cover_letter_text: string;
   key_changes_made?: string[];
-  improved_match_score?: number;
   synthetic?: boolean;
-  notice?: string;
+  notice?: string | null;
+  cover_letter_synthetic?: boolean;
+  cover_letter_notice?: string | null;
 }
 
 export interface ApplicationTrackerItem {
   id: string;
   company: string;
   role: string;
-  matchScore: number;
-  status: 'APPLIED' | 'INTERVIEW' | 'OFFER' | 'REJECTED';
-  stage: 'Saved' | 'Applied' | 'Tech Screen' | 'Final Round' | 'Offer' | 'Archived';
+  /** Real ATS score from a scan, or null when the row was added manually. */
+  matchScore: number | null;
+  status: 'SAVED' | 'APPLIED' | 'INTERVIEW' | 'OFFER' | 'REJECTED';
   appliedDate: string;
   notes: string;
+  createdAt?: string;
+}
+
+/** Shape returned by GET/POST/PATCH /api/applications. */
+export interface ApplicationRecord {
+  id: string;
+  userId: string;
+  company: string;
+  role: string;
+  matchScore: number;
+  status: 'SAVED' | 'APPLIED' | 'INTERVIEW' | 'OFFER' | 'REJECTED';
+  appliedDate: string;
+  notes?: string | null;
+  createdAt?: string;
+}
+
+export type DocumentCheckStatus = 'pass' | 'warn' | 'fail' | 'not_tested';
+
+export interface DocumentCheck {
+  id: string;
+  label: string;
+  status: DocumentCheckStatus;
+  /** True only when ResumeSetu really measured this. */
+  measured: boolean;
+  /** True when the result is a heuristic rather than a direct fact. */
+  estimated: boolean;
+  detail: string;
+}
+
+export interface DocumentCheckReport {
+  checks: DocumentCheck[];
+  measuredCount: number;
+  notTestedCount: number;
+  wordCount: number;
+  characterCount: number;
+  sourceName: string | null;
+  generatedByResumeSetu: boolean;
+}
+
+/** Separated ATS scoring components. Never collapse these into one number. */
+export interface ScoreBreakdown {
+  keywordCoverage: number;
+  semanticProximity: number;
+  overall: number;
+}
+
+export interface GroundingFinding {
+  id: string;
+  kind: 'fabricated_metric' | 'unsupported_credential' | 'unsupported_employer' | 'source_unavailable';
+  severity: 'high' | 'medium';
+  excerpt: string;
+  explanation: string;
+}
+
+export interface GroundingReport {
+  grounded: boolean;
+  findings: GroundingFinding[];
+  redactions: Array<{ original: string; replacement: string }>;
+  checkedSentences: number;
+  note: string;
+}
+
+export interface AtsAnalysis {
+  matchScore: number;
+  semanticMatchScore: number;
+  cosineSimilarity: number;
+  keywordCoverageRatio: number;
+  keywordCoveragePercent: number;
+  scoreBreakdown: ScoreBreakdown;
+  keywordsMatched: string[];
+  keywordsMissing: string[];
+  matchedCount: number;
+  missingCount: number;
+  requiredCount: number;
+  skillsMatched: string[];
+  skillsMissing: string[];
+  presentKeywords: string[];
+  missingKeywords: string[];
+  strengths: string[];
+  summary: string;
+  inputQuality: {
+    resumeChars: number;
+    jobDescriptionChars: number;
+    scorable: boolean;
+    reason: 'ok' | 'empty_resume' | 'empty_job_description' | 'no_keyword_signal';
+    explanation: string;
+  };
+  starSuggestions: Array<{ original: string; suggestion: string; keyword: string }>;
 }

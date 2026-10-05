@@ -3,7 +3,12 @@ import path from 'path';
 import crypto from 'crypto';
 
 export type Plan = 'FREE' | 'PRO';
-export type ApplicationStatus = 'APPLIED' | 'INTERVIEW' | 'OFFER' | 'REJECTED';
+/**
+ * Application lifecycle: a row exists from the moment the candidate saves a role,
+ * so SAVED is a real state rather than something inferred in the browser.
+ * `public.application_status` gained 'SAVED' in migration 202610030001.
+ */
+export type ApplicationStatus = 'SAVED' | 'APPLIED' | 'INTERVIEW' | 'OFFER' | 'REJECTED';
 
 export const OWNER_EMAIL = 'anjana2771patel@gmail.com';
 
@@ -68,7 +73,13 @@ export interface SecurityLog {
     | 'ADMIN_LOGIN'
     | 'CREDITS_UPDATED'
     | 'USER_EDITED'
-    | 'GUEST_MIGRATED';
+    | 'GUEST_MIGRATED'
+    | 'PRO_UPGRADE_REQUESTED'
+    | 'USER_REGISTERED'
+    | 'LOGIN_SUCCESS'
+    | 'LOGIN_FAILED'
+    | 'PASSWORD_CHANGED'
+    | 'PASSWORD_SET';
   severity: 'info' | 'warning' | 'critical';
   details: string;
   ip?: string;
@@ -114,6 +125,7 @@ export interface Resume {
   starFormattedBullets?: Array<{ bullet: string; category: string; impact: string }> | null;
   createdAt: string;
 }
+
 
 export interface JobScan {
   id: string;
@@ -245,8 +257,17 @@ const DEFAULT_TASK_BINDINGS: Record<string, TaskBinding> = {
   cover_letter: {
     task: 'cover_letter',
     taskLabel: 'Executive Cover Letter Synthesis',
+    // Gemini is the better writer, so it stays primary; Groq is the fallback
+    // because it is the provider this deployment actually has a key for.
+    //
+    // This used to fall back to OpenAI, which meant that with only a Groq key
+    // configured BOTH models were unusable and every cover letter silently
+    // degraded to the local outline (see the fallback at the end of runModel).
+    // getModelPipeline skips providers whose key is missing, so an unconfigured
+    // primary already falls through — but only if something behind it is
+    // configured. Keep at least one reachable provider in every chain.
     primaryModelId: 'llm_gemini_25_flash',
-    fallbackModelId: 'llm_openai_gpt4o',
+    fallbackModelId: 'llm_groq_llama70b',
   },
   star_bullet: {
     task: 'star_bullet',
@@ -363,7 +384,7 @@ function ensureDb(): DatabaseSchema {
           jobTitle: item.job_title || item.jobTitle || 'Target Role',
           companyName: item.company || item.companyName || 'Target Company',
           jobDescriptionText: item.job_description || item.jobDescriptionText || '',
-          matchScore: item.match_score || item.matchScore || 80,
+          matchScore: coerceCounter(item.match_score ?? item.matchScore),
           missingKeywords: item.missing_keywords || item.missingKeywords || [],
           strengths: item.strengths || [],
           summary: item.summary || '',
@@ -783,7 +804,7 @@ export const db = {
     return user;
   },
 
-  recordUserSessionPing(userId: string, seconds: number = 30, page: string = 'workspace'): void {
+  recordUserSessionPing(userId: string, seconds: number = 30, _page: string = 'workspace'): void {
     if (!userId || userId === 'guest_user') return;
     const state = ensureDb();
     const user = state.users[userId];
@@ -839,6 +860,7 @@ export const db = {
 
     // Applications by status
     const applicationsByStatus: Record<string, number> = {
+      SAVED: 0,
       APPLIED: 0,
       INTERVIEW: 0,
       OFFER: 0,

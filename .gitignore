@@ -19,3 +19,6 @@ locals.txt
 *.local.txt
 keys
 secrets.txt
+
+# Supabase CLI local project state (machine-specific, never shared).
+supabase/.temp/

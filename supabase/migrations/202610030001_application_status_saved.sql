@@ -1,0 +1,36 @@
+-- ---------------------------------------------------------------------------
+-- Application tracker: add the "Saved" lifecycle stage.
+--
+-- WHY
+-- ---
+-- The tracker UI offers Saved -> Applied -> Interview -> Offer -> Rejected, but
+-- `public.application_status` only had four values, so a row could not represent
+-- "I am interested in this role but have not applied yet". The browser papered
+-- over this by keeping the tracker in localStorage, which meant dashboard counts
+-- were per-device and not backed by any record.
+--
+-- `ADD VALUE` is additive: no existing row is rewritten, no column is dropped,
+-- and every pre-existing query keeps working.
+--
+-- HOW TO RUN
+-- ----------
+--   Supabase Dashboard -> SQL Editor -> paste -> Run
+-- or
+--   psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/202610030001_application_status_saved.sql
+--
+-- VERIFY
+--   npm run db:check
+--
+-- DELIBERATE OMISSIONS (do not "fix" these)
+-- --------------------------------------------
+-- * No BEGIN/COMMIT. `ALTER TYPE ... ADD VALUE` is not permitted inside a
+--   transaction block on several PostgreSQL versions the project may run on.
+--   Wrapping it would make the migration fail on those versions.
+-- * No `exception when others then null`. The previous version swallowed every
+--   error, so the migration reported success while changing nothing — the enum
+--   stayed missing and the tracker silently broke. This script now fails loudly.
+-- * No `if not exists` gymnastics beyond IF NOT EXISTS on ADD VALUE itself,
+--   which makes re-running this file a no-op rather than an error.
+-- ---------------------------------------------------------------------------
+
+alter type public.application_status add value if not exists 'SAVED';
