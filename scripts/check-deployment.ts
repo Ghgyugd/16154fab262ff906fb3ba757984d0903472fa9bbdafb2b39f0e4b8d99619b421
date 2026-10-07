@@ -69,7 +69,7 @@ if (!fs.existsSync(path.resolve(process.cwd(), 'dist', 'index.html'))) {
   failures.push('Production client build is missing; run npm run build.');
 }
 
-for (const runtimeFile of ['server.ts', 'lib/rate-limiter.ts', 'lib/queue.ts']) {
+for (const runtimeFile of ['server.ts', 'lib/rate-limiter.ts', 'lib/shared-rate-limiter.ts', 'lib/queue.ts']) {
   const source = fs.readFileSync(path.resolve(process.cwd(), runtimeFile), 'utf8');
   if (!source.includes('supabaseDb as db')) {
     failures.push(`${runtimeFile} is not wired to the Supabase runtime repository.`);
@@ -87,7 +87,7 @@ if (supabaseUrl && supabaseSecret) {
 
   const tableNames = [
     'users', 'resumes', 'job_scans', 'applications', 'llm_configs',
-    'task_bindings', 'system_settings', 'security_logs',
+    'task_bindings', 'system_settings', 'security_logs', 'api_rate_limits', 'manual_payment_records',
   ];
   // NOTE: probe with a real SELECT, never `head: true`.
   //
@@ -108,6 +108,18 @@ if (supabaseUrl && supabaseSecret) {
   if (quotaFunction.error) failures.push(`Supabase quota function is unavailable (${quotaFunction.error.code || 'request failed'}).`);
   const pingFunction = await supabase.rpc('record_session_ping', { p_user_id: probeId, p_seconds: 0 });
   if (pingFunction.error) failures.push(`Supabase session analytics function is unavailable (${pingFunction.error.code || 'request failed'}).`);
+  const burstFunction = await supabase.rpc('consume_ip_burst_limit', {
+    p_key_hash: 'invalid', p_max_requests: 1, p_window_seconds: 60,
+  });
+  if (burstFunction.error?.code !== 'P0001') failures.push(`Supabase shared rate-limit function is unavailable (${burstFunction.error?.code || 'request failed'}).`);
+  const paymentFunction = await supabase.rpc('record_manual_payment', {
+    p_id: 'deployment_probe', p_user_id: 'deployment_probe', p_amount_inr: 0,
+    p_payment_method: 'invalid', p_transaction_reference: '', p_payment_request_reference: '',
+    p_required_amount_inr: 249, p_note: '', p_recorded_by: 'deployment_probe',
+  });
+  if (!paymentFunction.error || !['P0001', '23514'].includes(paymentFunction.error.code || '')) {
+    failures.push(`Supabase manual payment ledger function is unavailable (${paymentFunction.error?.code || 'unexpected success'}).`);
+  }
 
   /*
    * Every AI task must have at least one model whose provider key is actually

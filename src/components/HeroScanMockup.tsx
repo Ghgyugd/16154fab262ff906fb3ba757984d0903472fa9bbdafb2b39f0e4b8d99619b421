@@ -57,14 +57,6 @@ export const HeroScanMockup: React.FC<{ onScanClick?: () => void }> = ({ onScanC
 
   return (
     <div className="relative w-full pt-3">
-      {/* Floating unclipped badge - anchored above card with zero overflow clipping */}
-      <div className="absolute top-0 right-6 z-20 pointer-events-none hidden sm:block">
-        <span className="font-cursive text-sm text-[#1D4ED8] bg-white/95 backdrop-blur-md px-3.5 py-1 rounded-full border border-blue-pale/90 shadow-md font-bold inline-flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-mid" />
-          <span>Illustrative demo — not your data</span>
-        </span>
-      </div>
-
       {/* Main Mockup Card with Deepened/Softened 3D Shadow */}
       <div className="glass-panel w-full relative rounded-3xl !bg-white/55 backdrop-blur-2xl border border-white/80 shadow-[0_30px_80px_-15px_rgba(11,37,69,0.22),0_12px_32px_-4px_rgba(11,37,69,0.1),0_4px_12px_rgba(11,37,69,0.05),inset_0_1px_0_rgba(255,255,255,0.95)] overflow-hidden transition-all duration-300 hover:shadow-[0_38px_90px_-12px_rgba(29,78,216,0.32),0_16px_40px_-6px_rgba(11,37,69,0.12)] hover:-translate-y-1">
         {/* 3D Top Specular Highlight */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ClerkProvider } from '@clerk/react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { LenisProvider } from './context/LenisContext.js';
@@ -14,14 +14,16 @@ import { ATSInteractiveBackground } from './components/ATSInteractiveBackground.
 type Tab = 'landing' | 'dashboard' | 'admin';
 
 function MainApp() {
-  const { user, identity, loading, setAuthModalOpen, setAuthMode } = useAuth();
+  const { user, loading, setAuthModalOpen, setAuthMode } = useAuth();
   const [currentTab, setCurrentTab] = useState<Tab>('landing');
   const [isPaywallOpen, setPaywallOpen] = useState(false);
   const [isDeleteDataOpen, setDeleteDataOpen] = useState(false);
+  const initialRouteHandled = useRef(false);
 
-  const hasAccess = Boolean(
-    identity && user && !user.isAnonymous && !user.id.startsWith('guest_')
-  );
+  // The signed httpOnly backend session is authoritative. Profile metadata from
+  // Clerk is optional and must not decide whether a restored cookie can enter
+  // the workspace.
+  const hasAccess = Boolean(user && !user.isAnonymous && !user.id.startsWith('guest_'));
   const routingReady = !loading;
 
   // Sync hash and path routing if user clicks direct links or browser back/forward
@@ -50,7 +52,7 @@ function MainApp() {
           setCurrentTab('landing');
           if (!hasAccess) setAuthModalOpen(true);
         }
-      } else if (hash === '#dashboard' || hash === '#analyze') {
+      } else if (hash === '#dashboard' || hash === '#analyze' || hash === '#/dashboard' || hash === '#/analyze') {
         if (hasAccess) {
           setCurrentTab('dashboard');
         } else {
@@ -58,8 +60,9 @@ function MainApp() {
           setAuthModalOpen(true);
         }
       } else if (hash === '' || hash === '#') {
-        setCurrentTab('landing');
+        setCurrentTab(initialRouteHandled.current || !hasAccess ? 'landing' : 'dashboard');
       }
+      initialRouteHandled.current = true;
     };
     handleRouting();
     window.addEventListener('hashchange', handleRouting);
@@ -72,7 +75,7 @@ function MainApp() {
 
   // When user successfully signs in, route to dashboard if requested
   useEffect(() => {
-    if (routingReady && hasAccess && (window.location.hash === '#dashboard' || window.location.hash === '#analyze')) {
+    if (routingReady && hasAccess && ['#dashboard', '#analyze', '#/dashboard', '#/analyze'].includes(window.location.hash)) {
       setCurrentTab('dashboard');
     }
   }, [routingReady, hasAccess]);
@@ -165,7 +168,7 @@ function MainApp() {
 }
 
 /**
- * Clerk is OPTIONAL.
+ * Clerk is required for authentication.
  *
  * The app previously refused to render at all without VITE_CLERK_PUBLISHABLE_KEY
  * and wrapped everything in <ClerkProvider>, so a Clerk outage or
@@ -173,10 +176,9 @@ function MainApp() {
  * instance is configured for email one-time codes only and has no password
  * option, so there was no traditional way in.
  *
- * Email + password sign-in is now first-party (see lib/passwords.ts and
- * /api/auth/password/login) and needs no third party. ClerkProvider is mounted
- * only when a key is present, so the Google button and the OAuth callback keep
- * working without making them a requirement.
+ * Clerk owns all credential and OAuth flows. Requiring the publishable key at
+ * startup makes a missing deployment setting visible instead of presenting a
+ * sign-in dialog that cannot authenticate anyone.
  */
 /**
  * Shown when the Clerk publishable key is missing.

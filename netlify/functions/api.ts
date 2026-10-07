@@ -28,6 +28,10 @@ interface NetlifyEvent {
   requestContext?: Record<string, unknown>;
 }
 
+interface NetlifyContext {
+  ip?: string;
+}
+
 interface NetlifyResponse {
   statusCode: number;
   headers?: Record<string, string | number | boolean>;
@@ -69,8 +73,12 @@ function toApiPath(event: NetlifyEvent): string {
  * otherwise branches on `version === '2.0'` and reads `rawPath`/`rawQueryString`,
  * which Netlify does not provide.
  */
-function normalizeEvent(event: NetlifyEvent): NetlifyEvent {
-  const normalized: NetlifyEvent = { ...event, path: toApiPath(event) };
+function normalizeEvent(event: NetlifyEvent, clientIp?: string): NetlifyEvent {
+  const normalized: NetlifyEvent = {
+    ...event,
+    path: toApiPath(event),
+    headers: { ...(event.headers || {}), ...(clientIp ? { 'x-resumesetu-client-ip': clientIp } : {}) },
+  };
   normalized.httpMethod = event.httpMethod || 'GET';
   delete (normalized as { version?: unknown }).version;
   delete (normalized as { rawPath?: unknown }).rawPath;
@@ -108,7 +116,7 @@ function getAdapter(): Promise<ExpressAdapter> {
   return adapterPromise;
 }
 
-export const handler = async (event: NetlifyEvent): Promise<NetlifyResponse> => {
+export const handler = async (event: NetlifyEvent, context?: NetlifyContext): Promise<NetlifyResponse> => {
   const adapter = await getAdapter();
-  return adapter(normalizeEvent(event ?? {}));
+  return adapter(normalizeEvent(event ?? {}, context?.ip));
 };

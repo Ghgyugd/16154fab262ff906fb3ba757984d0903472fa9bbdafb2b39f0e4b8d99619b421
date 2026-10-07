@@ -54,7 +54,7 @@ export const ThreeStepPipeline: React.FC<ThreeStepPipelineProps> = ({ onScanClic
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#0B2545] tracking-tight">
             Three Steps To{' '}
-            <span className="bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#60A5FA] bg-clip-text text-transparent">
+            <span className="text-blue-core">
               Interview Readiness
             </span>
           </h2>

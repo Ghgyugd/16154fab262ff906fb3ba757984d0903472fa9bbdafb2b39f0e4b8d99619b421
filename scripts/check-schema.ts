@@ -18,6 +18,8 @@
  * Safe to run at any time: read-only.
  */
 import { createClient } from '@supabase/supabase-js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const MIGRATIONS: Array<{
   file: string;
@@ -31,6 +33,18 @@ const MIGRATIONS: Array<{
     summary: "add the 'SAVED' application stage",
     sql: "alter type public.application_status add value if not exists 'SAVED';",
   },
+  {
+    file: '202610070001_shared_ip_rate_limits.sql',
+    summary: 'add atomic shared IP burst limits for serverless instances',
+    creates: ['api_rate_limits'],
+    sql: fs.readFileSync(path.resolve('supabase/migrations/202610070001_shared_ip_rate_limits.sql'), 'utf8'),
+  },
+  {
+    file: '202610070002_manual_payment_ledger.sql',
+    summary: 'add verified manual-payment accounting and atomic Pro activation',
+    creates: ['manual_payment_records'],
+    sql: fs.readFileSync(path.resolve('supabase/migrations/202610070002_manual_payment_ledger.sql'), 'utf8'),
+  },
 ];
 
 const REQUIRED_TABLES = [
@@ -42,6 +56,8 @@ const REQUIRED_TABLES = [
   'task_bindings',
   'system_settings',
   'security_logs',
+  'api_rate_limits',
+  'manual_payment_records',
 ];
 
 /**
@@ -143,12 +159,24 @@ async function main(): Promise<void> {
       name: 'record_session_ping',
       args: { p_user_id: `schema_probe_${Date.now()}`, p_seconds: 0 },
     },
+    { name: 'consume_ip_burst_limit', args: { p_key_hash: 'invalid', p_max_requests: 1, p_window_seconds: 60 } },
+    { name: 'record_manual_payment', args: { p_id: 'probe', p_user_id: 'probe', p_amount_inr: 0, p_payment_method: 'invalid', p_transaction_reference: '', p_payment_request_reference: '', p_required_amount_inr: 249, p_note: '', p_recorded_by: 'probe' } },
   ];
   for (const rpc of rpcProbes) {
     const { error } = await supabase.rpc(rpc.name, rpc.args);
-    if (error) {
+    if (rpc.name === 'consume_ip_burst_limit' && error?.code === 'P0001') {
+      console.log(`  ok       ${rpc.name}()`);
+    } else if (rpc.name === 'record_manual_payment' && error?.code === 'P0001') {
+      console.log(`  ok       ${rpc.name}()`);
+    } else if (error) {
       failures += 1;
       console.log(`  MISSING  ${rpc.name}()  (${error.message})`);
+      const migration = MIGRATIONS.find((item) =>
+        rpc.name === 'consume_ip_burst_limit'
+          ? item.file === '202610070001_shared_ip_rate_limits.sql'
+          : item.file === '202610070002_manual_payment_ledger.sql'
+      );
+      if (migration && !pending.includes(migration)) pending.push(migration);
     } else {
       console.log(`  ok       ${rpc.name}()`);
     }

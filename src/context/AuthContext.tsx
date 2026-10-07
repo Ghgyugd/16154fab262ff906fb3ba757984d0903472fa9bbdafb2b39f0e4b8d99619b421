@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { useAuth as useClerkAuth } from '@clerk/react';
+import { useUser as useClerkUser } from '@clerk/react';
 import { FREE_SCAN_LIMIT, PRO_UNLIMITED_CREDITS } from '../config.js';
 import { User } from '../types/index.js';
 
@@ -40,6 +41,8 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const wait = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
 /**
  * Reads an API response as JSON, but refuses to pretend an HTML page is one.
@@ -97,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * cookie; when Clerk reports signed out, drop it.
    */
   const clerk = useClerkAuth();
+  const { user: clerkUser } = useClerkUser();
   const { isSignedIn, isLoaded, getToken, signOut: clerkSignOut } = clerk;
 
   const [user, setUser] = useState<User | null>(null);
@@ -119,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const restoreSession = useCallback(async (): Promise<boolean> => {
     try {
-      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      const res = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
       if (res.ok) {
         const data = await readApiJson(res);
         if (data?.user) {
@@ -153,15 +157,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setAuthError(null);
       try {
-        const token = await getToken();
+        let token: string | null = null;
+        for (let attempt = 0; attempt < 4 && !token; attempt += 1) {
+          token = await getToken();
+          if (!token && attempt < 3) await wait(250 * (attempt + 1));
+        }
         if (!token) throw new Error('Clerk did not return a session token.');
 
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          credentials: 'include',
-          body: JSON.stringify({}),
-        });
+        let res: Response | null = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            res = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              credentials: 'include',
+              cache: 'no-store',
+              body: JSON.stringify({}),
+            });
+            if (res.status < 500 || attempt === 2) break;
+          } catch (networkError) {
+            if (attempt === 2) throw networkError;
+          }
+          await wait(350 * (attempt + 1));
+        }
+        if (!res) throw new Error('Could not reach the ResumeSetu API. Please retry in a moment.');
         const data = await readApiJson(res);
         if (!res.ok || !data?.user) {
           throw new Error(data?.error || `Could not finish connecting your account (HTTP ${res.status}).`);
@@ -170,9 +189,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(toAppUser(data.user));
         setIdentity({
           uid: data.user.id,
-          email: data.user.email ?? null,
-          displayName: data.user.displayName ?? null,
-          photoURL: null,
+          email: data.user.email ?? clerkUser?.primaryEmailAddress?.emailAddress ?? null,
+          displayName:
+            data.user.displayName ?? clerkUser?.fullName ?? clerkUser?.username ?? null,
+          photoURL: clerkUser?.imageUrl ?? null,
         });
         setAuthBackendDown(false);
         setAuthModalOpen(false);
@@ -184,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // user signed in at Clerk and offer a retry rather than a dead end.
         setAuthBackendDown(true);
         setAuthError(err instanceof Error ? err.message : 'Could not connect your account.');
+        setAuthModalOpen(true);
       } finally {
         setLoading(false);
         inFlightSync.current = null;
@@ -192,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     inFlightSync.current = run;
     return run;
-  }, [getToken, clerk.userId]);
+  }, [getToken, clerk.userId, clerkUser]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -221,7 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      const res = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
       if (!res.ok) return;
       const data = await readApiJson(res);
       if (data?.user) setUser(toAppUser(data.user));

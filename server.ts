@@ -6,6 +6,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import crypto from 'crypto';
+import { isIP } from 'node:net';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import { clerkClient, verifyToken } from '@clerk/express';
@@ -28,11 +29,12 @@ import {
   buildPaymentMessage,
   buildTelegramUrl,
   issuePaymentReference,
+  verifyPaymentReference,
   publicOwnerProfile,
 } from './lib/payment.js';
 import { taskQueue } from './lib/queue.js';
 import { checkTierRateLimit } from './lib/rate-limiter.js';
-import { checkIpBurstLimit } from './lib/burst-limiter.js';
+import { checkSharedIpBurstLimit } from './lib/shared-rate-limiter.js';
 import { generateResumeDocx, verifyDocxIntegrity } from './lib/docx-generator.js';
 import {
   SESSION_COOKIE,
@@ -57,6 +59,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+function requestClientIp(req: Request): string {
+  if ((globalThis as { __RESUMESETU_SERVERLESS__?: boolean }).__RESUMESETU_SERVERLESS__) {
+    const netlifyIp = req.get('x-resumesetu-client-ip')?.trim();
+    if (netlifyIp && isIP(netlifyIp)) return netlifyIp;
+  }
+  return req.ip || req.socket.remoteAddress || '127.0.0.1';
+}
+
 // Setup upload directory (best-effort: serverless runtimes are read-only)
 const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
 try {
@@ -77,6 +87,15 @@ const upload = multer({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
+
+// Auth responses contain identity and session state. Mark them uncacheable at
+// both the browser and Netlify edge so a shared cached 401/response can never
+// make a returning user appear signed out.
+app.use('/api/auth', (_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  next();
+});
 
 // -----------------------------------------------------------------------------
 // SECURITY HEADERS
@@ -485,7 +504,7 @@ app.post('/api/payments/request', async (req: SessionRequest, res: Response) => 
 
     // Throttled: each request writes an audit row and can be spammed by a
     // scripted client, which would bury the admin in notifications.
-    const throttle = checkIpBurstLimit(req.ip || req.socket.remoteAddress || '127.0.0.1');
+    const throttle = await checkSharedIpBurstLimit(requestClientIp(req));
     if (!throttle.allowed) {
       res.setHeader('Retry-After', String(throttle.retryAfterSeconds ?? 60));
       return res.status(429).json({
@@ -699,7 +718,7 @@ app.post('/api/check', upload.single('resume'), async (req: SessionRequest, res:
 
     const { job_description, sample_type } = req.body;
     const activeUserId = req.activeUserId || req.sessionToken || 'guest_user';
-    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    const ip = requestClientIp(req);
 
     // 0. Banned Account Check
     const activeUserRecord = await db.getUser(activeUserId);
@@ -1158,7 +1177,7 @@ app.post('/api/tailor', async (req: SessionRequest, res: Response) => {
     // Tailoring runs two model calls, so it is throttled like a scan. Without
     // this a single Pro session could fan out unlimited concurrent rewrites
     // (the in-flight guard below only deduplicates per scan, not per account).
-    const tailorThrottle = checkIpBurstLimit(req.ip || req.socket.remoteAddress || '127.0.0.1');
+    const tailorThrottle = await checkSharedIpBurstLimit(requestClientIp(req));
     if (!tailorThrottle.allowed) {
       res.setHeader('Retry-After', String(tailorThrottle.retryAfterSeconds ?? 60));
       return res.status(429).json({
@@ -1620,6 +1639,82 @@ app.get('/api/admin/security-logs', async (req: SessionRequest, res: Response) =
   if (!await requireAdmin(req, res)) return;
   const logs = await db.getSecurityLogs(50);
   res.json({ success: true, logs });
+});
+
+app.post('/api/admin/confirm-payment', async (req: SessionRequest, res: Response) => {
+  if (!await requireAdmin(req, res)) return;
+  const { userId, paymentRequestReference, amountInr, paymentMethod, transactionReference, note = '' } = req.body || {};
+  const amount = Number(amountInr);
+  const allowedMethods = ['upi', 'bank_transfer', 'cash', 'other'];
+  if (
+    typeof userId !== 'string' || !userId ||
+    !Number.isSafeInteger(amount) || amount <= 0 || amount > 10_000_000 ||
+    !allowedMethods.includes(paymentMethod) ||
+    typeof transactionReference !== 'string' || transactionReference.trim().length < 4 || transactionReference.trim().length > 128 ||
+    typeof paymentRequestReference !== 'string' ||
+    typeof note !== 'string' || note.length > 500
+  ) {
+    return res.status(400).json({ success: false, error: 'Enter a positive amount, payment method, transaction reference, and valid upgrade request.' });
+  }
+
+  if (!verifyPaymentReference(paymentRequestReference).valid) {
+    return res.status(400).json({ success: false, error: 'The upgrade request reference is invalid or expired.' });
+  }
+
+  const requests = await db.getSecurityLogs(500);
+  const requestExists = requests.some((log) =>
+    log.event === 'PRO_UPGRADE_REQUESTED' &&
+    log.targetUserId === userId &&
+    log.details.includes(`Reference ${paymentRequestReference}.`)
+  );
+  if (!requestExists) {
+    return res.status(404).json({ success: false, error: 'No matching upgrade request was found for this account.' });
+  }
+
+  const actorId = req.activeUserId;
+  if (!actorId) return res.status(401).json({ success: false, error: 'Your admin session expired. Sign in again.' });
+
+  try {
+    const payment = await db.recordManualPayment({
+      id: `pay_${crypto.randomUUID()}`,
+      userId,
+      amountInr: amount,
+      paymentMethod,
+      transactionReference: transactionReference.trim().toUpperCase(),
+      paymentRequestReference,
+      requiredAmountInr: PRO_PRICE_INR,
+      note: note.trim(),
+      recordedBy: actorId,
+    });
+    const totalReceivedInr = await db.getManualPaymentTotalForRequest(paymentRequestReference, userId);
+    const user = await db.getUser(userId);
+    try {
+      await db.addSecurityLog({
+        event: 'PAYMENT_CONFIRMED',
+        severity: 'info',
+        details: `Admin recorded ₹${amount} payment (${paymentMethod}) for ${user?.email || userId}; reference ${paymentRequestReference}.`,
+        actorEmail: (await db.getUser(actorId))?.email,
+        targetUserId: userId,
+      });
+    } catch (logError) {
+      console.error('[Payments] confirmation audit log failed:', logError instanceof Error ? logError.message : 'unknown error');
+    }
+    res.json({
+      success: true,
+      payment,
+      user,
+      totalReceivedInr,
+      requiredAmountInr: PRO_PRICE_INR,
+      proActivated: totalReceivedInr >= PRO_PRICE_INR && user?.currentPlan === 'PRO',
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (/23505|duplicate key/i.test(message)) {
+      return res.status(409).json({ success: false, error: 'That transaction reference has already been recorded.' });
+    }
+    console.error('[Payments] manual confirmation failed:', message || 'unknown error');
+    res.status(500).json({ success: false, error: 'The payment could not be recorded. Check the ledger before retrying.' });
+  }
 });
 
 // Real System Health & Monitoring

@@ -33,15 +33,15 @@ export const LenisProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const instance = new Lenis({
-      // Snappier than the previous 1.2s — long durations make wheel scrolling
-      // feel delayed/laggy because the page keeps easing toward the target.
-      duration: 0.9,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      // A lower interpolation keeps wheel movement gliding between inputs so
+      // the smooth-scroll effect is perceptible without making the page sluggish.
+      lerp: 0.075,
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
-      wheelMultiplier: 1.0,
+      wheelMultiplier: 0.9,
       touchMultiplier: 1.5,
+      anchors: true,
       // Native touch scrolling: Lenis' synced touch animation was a common
       // source of jank on mobile devices and buys nothing on desktop.
       syncTouch: false,
@@ -74,7 +74,8 @@ export const LenisProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    const behavior: ScrollBehavior = options?.immediate ? 'auto' : 'smooth';
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const behavior: ScrollBehavior = options?.immediate || reducedMotion ? 'auto' : 'smooth';
     if (typeof target === 'number') {
       window.scrollTo({ top: target, behavior });
     } else if (typeof target === 'string') {

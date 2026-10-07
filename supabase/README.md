@@ -24,6 +24,19 @@ Uploads are AES-256-GCM encrypted by the server before being sent to Supabase St
 expects and prints the exact SQL for anything outstanding. It is read-only and
 safe to run at any time.
 
+The following changes are also required by the current application version:
+
+- [`202610070001_shared_ip_rate_limits.sql`](migrations/202610070001_shared_ip_rate_limits.sql)
+  stores HMAC-hashed IP counters and applies atomic burst limits across
+  serverless instances.
+- [`202610070002_manual_payment_ledger.sql`](migrations/202610070002_manual_payment_ledger.sql)
+  records admin-verified receipts and activates Pro after confirmed receipts
+  reach the configured price.
+
+Apply both in the Supabase SQL Editor before deploying this version. They are
+included in `db:check` and `check:deploy`; the deployment gate will fail while
+they are missing. No SQL values contain user secrets.
+
 One trap worth knowing if you extend it: **do not probe table existence with
 `head: true`.** In the pinned `@supabase/supabase-js`, a HEAD request against a
 table that does not exist still resolves with `error: null`, so the check

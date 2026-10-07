@@ -75,6 +75,7 @@ export interface SecurityLog {
     | 'USER_EDITED'
     | 'GUEST_MIGRATED'
     | 'PRO_UPGRADE_REQUESTED'
+    | 'PAYMENT_CONFIRMED'
     | 'USER_REGISTERED'
     | 'LOGIN_SUCCESS'
     | 'LOGIN_FAILED'
@@ -90,6 +91,8 @@ export interface SecurityLog {
 export interface AdminAnalytics {
   totalUsers: number;
   activeProMembers: number;
+  confirmedRevenueInr: number;
+  confirmedPaymentCount: number;
   freeMembers: number;
   bannedUsers: number;
   adminUsers: number;
@@ -874,6 +877,8 @@ export const db = {
     return {
       totalUsers: users.length,
       activeProMembers: proUsers,
+      confirmedRevenueInr: 0,
+      confirmedPaymentCount: 0,
       freeMembers: freeUsers,
       bannedUsers,
       adminUsers,

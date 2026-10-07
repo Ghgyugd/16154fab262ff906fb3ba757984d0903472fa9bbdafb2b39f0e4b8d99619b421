@@ -1,5 +1,5 @@
 import { supabaseDb as db } from './supabase-db.js';
-import { checkIpBurstLimit } from './burst-limiter.js';
+import { checkSharedIpBurstLimit } from './shared-rate-limiter.js';
 
 export interface TierRateLimitResult {
   allowed: boolean;
@@ -54,7 +54,7 @@ async function checkTierRateLimitAsync(
 
   // 1. IP burst protection (expensive endpoints only, and never for Pro).
   if (enforceBurst) {
-    const throttle = checkIpBurstLimit(ipAddress);
+    const throttle = await checkSharedIpBurstLimit(ipAddress);
     if (!throttle.allowed) {
       return {
         allowed: false,

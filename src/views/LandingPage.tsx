@@ -17,10 +17,12 @@ import { HeroBridgeGraphic } from '../components/HeroBridgeGraphic.js';
 import { ThreeStepPipeline } from '../components/ThreeStepPipeline.js';
 import { CapabilitiesBento } from '../components/CapabilitiesBento.js';
 import { AtsPipelineDiagram } from '../components/AtsPipelineDiagram.js';
-import { BulletDiffExplorer } from '../components/BulletDiffExplorer.js';
 import { Logo } from '../components/Logo.js';
 import { OwnerProfileCard, type OwnerProfileData } from '../components/OwnerProfile.js';
 import { FREE_SCAN_LIMIT, PRO_PRICE_INR } from '../config.js';
+import portraitOne from '../assets/images/profile-career-change.webp';
+import portraitTwo from '../assets/images/profile-career-growth.webp';
+import portraitThree from '../assets/images/profile-specialist.webp';
 
 interface LandingPageProps {
   onScanClick: () => void;
@@ -105,7 +107,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   resume
                 </span>{' '}
                 and your{' '}
-                <span className="bg-gradient-to-r from-blue-core via-blue-bright to-blue-pale bg-clip-text text-transparent">
+                <span className="text-blue-core">
                   next opportunity
                 </span>
                 .
@@ -271,12 +273,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <AtsPipelineDiagram />
 
       {/* =========================================================================
-          5. STAR BULLET DIFF EXPLORER: Before vs After Sandbox
-         ========================================================================= */}
-      <BulletDiffExplorer />
-
-      {/* =========================================================================
-          6. WHAT THE PRODUCT REPORTS BACK
+          5. WHAT THE PRODUCT REPORTS BACK
              Replaces a "verified case study" section whose candidates, offers and
              score lifts were invented, and which we cannot substantiate.
          ========================================================================= */}
@@ -326,8 +323,69 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
+      {/* Practical use cases with illustrative portraits, not customer stories. */}
+      <section id="who-its-for" className="relative overflow-hidden border-b border-line-steel/30 py-20 sm:py-24">
+        <div aria-hidden="true" className="pointer-events-none absolute -left-36 top-12 h-80 w-80 rounded-full bg-blue-core/10 blur-3xl" />
+        <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
+            <div>
+              <span className="mb-3 inline-flex items-center rounded-full border border-blue-pale/60 bg-white/65 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-blue-core backdrop-blur">
+                Built for real job searches
+              </span>
+              <h2 className="text-3xl font-extrabold tracking-tight text-[#0B2545] sm:text-4xl">
+                Make each application more intentional.
+              </h2>
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#334E68] sm:text-base">
+                Whether you are changing direction or applying for a specialist role, start with the job description. ResumeSetu shows where your resume already aligns and what deserves a closer look before you apply.
+              </p>
+              <p className="mt-3 text-xs leading-relaxed text-[#627D98]">
+                Portraits are illustrative images and do not represent customers or results.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                {
+                  image: portraitOne,
+                  title: 'Changing careers',
+                  body: 'Connect transferable skills to the language used in a new field.',
+                },
+                {
+                  image: portraitTwo,
+                  title: 'Growing your career',
+                  body: 'Compare your experience with the expectations of a more senior role.',
+                },
+                {
+                  image: portraitThree,
+                  title: 'Targeting a specialty',
+                  body: 'Spot the tools and competencies a specific opening calls for.',
+                },
+              ].map((item) => (
+                <article key={item.title} className="group overflow-hidden rounded-2xl border border-white/80 bg-white/60 shadow-[0_14px_34px_-18px_rgba(11,37,69,0.3)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_42px_-18px_rgba(29,78,216,0.32)]">
+                  <div className="relative h-36 overflow-hidden sm:h-40">
+                    <img
+                      src={item.image}
+                      alt=""
+                      aria-hidden="true"
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#0B2545]/50 via-transparent to-transparent" />
+                  </div>
+                  <div className="p-4">
+                    <h3 className="text-sm font-bold text-[#0B2545]">{item.title}</h3>
+                    <p className="mt-1.5 text-xs leading-relaxed text-[#526B83]">{item.body}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* =========================================================================
-          7. PRICING LAYOUT: TWO SIDE-BY-SIDE 3D CARDS (Free vs Pro)
+          6. PRICING LAYOUT: TWO SIDE-BY-SIDE 3D CARDS (Free vs Pro)
              Pro Card is Highly Prominent with Dark Navy Background & Electric Blue Button
          ========================================================================= */}
       <section id="pricing" className="py-20 sm:py-28 border-b border-line-steel/30 scroll-mt-16 relative">
@@ -489,7 +547,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================================
-          8. FAQ ACCORDION
+          7. FAQ ACCORDION
          ========================================================================= */}
       <section className="py-20 sm:py-28 border-b border-line-steel/30">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -541,11 +599,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* =========================================================================
-          9. CORPORATE CLOUD MINIMALIST FOOTER WITH SINGLE COLOR BRANDING
+          8. CORPORATE CLOUD FOOTER
          ========================================================================= */}
-      <footer className="py-12 sm:py-14 bg-[#0B2545] text-[#8DA9C4] border-t border-[#0B2545]">
+      <footer className="relative isolate overflow-hidden border-t border-white/10 bg-gradient-to-br from-[#071A32] via-[#0B2545] to-[#123B70] py-12 text-[#B8C9DA] sm:py-14">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-36 -z-10 h-96 w-96 rounded-full bg-blue-core/25 blur-3xl" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0">
-          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-8">
+          <div className="grid gap-8 lg:grid-cols-[1fr_auto_auto] lg:items-start">
             <div className="min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <Logo variant="dark" size="md" />
@@ -553,15 +612,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   · Precision ATS Screening &amp; Action-First Tailoring
                 </span>
               </div>
-              <p className="text-xs text-[#8DA9C4]/70 mt-3 max-w-sm leading-relaxed">
-                Resume documents are analysed locally, never submitted to a third-party
-                parser, and you can purge everything we store at any time.
+              <p className="text-xs text-[#B8C9DA]/75 mt-3 max-w-sm leading-relaxed">
+                Compare your resume with a job description, find relevant gaps, and shape your next application with confidence.
               </p>
             </div>
 
+            <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-3 text-xs font-medium lg:pt-2">
+              <a href="#how-it-works" className="transition-colors hover:text-white">How it works</a>
+              <a href="#proof" className="transition-colors hover:text-white">What you get</a>
+              <a href="#pricing" className="transition-colors hover:text-white">Pricing</a>
+            </nav>
+
             {/* Owner contact: who handles activation, and where to reach them. */}
             {owner && (
-              <div className="w-full lg:w-auto lg:min-w-[340px] rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="w-full lg:w-auto lg:min-w-[340px] rounded-2xl border border-white/15 bg-white/[0.08] p-4 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur-xl">
                 <OwnerProfileCard owner={owner} variant="dark" className="!p-0 !border-0 !bg-transparent w-full" />
                 <button
                   type="button"

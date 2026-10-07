@@ -2,7 +2,7 @@
   # Also runs scripts/write-headers.ts, which generates dist/_headers so the CSP
   # and security headers are applied to the static document and assets. Without
   # that step the deployed page has no Content-Security-Policy at all.
-  command = "npm run build"
+  command = "npm run build && npm run check:deploy"
   publish = "dist"
 
 [build.environment]

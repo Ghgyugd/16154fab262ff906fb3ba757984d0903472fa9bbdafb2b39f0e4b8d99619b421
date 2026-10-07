@@ -548,7 +548,7 @@ section('payment routing');
 
   // --- reference signing --------------------------------------------------
   const reference = issuePaymentReference(USER_ID);
-  check('a reference has the documented shape', /^RSA-[A-Z2-7]{8}-[A-F0-9]{10}$/.test(reference), reference);
+  check('a reference has the documented shape', /^RSA-[A-Z2-7]{16}-[A-F0-9]{10}$/.test(reference), reference);
 
   /*
    * Regression: an earlier design emitted a bare opaque MAC, which could never be

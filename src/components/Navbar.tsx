@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ArrowLeft,
   FileText,
-  User as
   ShieldCheck,
   CreditCard,
 } from 'lucide-react';

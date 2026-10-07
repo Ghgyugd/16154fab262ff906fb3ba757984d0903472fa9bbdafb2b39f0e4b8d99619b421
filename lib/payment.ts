@@ -111,8 +111,9 @@ export function publicOwnerProfile(): OwnerProfile {
 // ---------------------------------------------------------------------------
 
 const REFERENCE_PREFIX = 'RSA';
-/** 5 bytes = 40 bits = exactly 8 base32 characters. */
-const REFERENCE_PAYLOAD_BYTES = 5;
+const REFERENCE_TIMESTAMP_BYTES = 5;
+const REFERENCE_NONCE_BYTES = 5;
+const REFERENCE_PAYLOAD_BYTES = REFERENCE_TIMESTAMP_BYTES + REFERENCE_NONCE_BYTES;
 /** 30 days: long enough to cover a slow reply, short enough to bound replay. */
 const REFERENCE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -178,9 +179,9 @@ function sign(payload: string): string {
 }
 
 /**
- * Mints a reference such as `RSA-6ZGL2KTB-4F1A9C7B3D`.
+ * Mints a reference such as `RSA-6ZGL2KTB4QJ7V3P-4F1A9C7B3D`.
  *
- *   payload (8 chars)  base32 of the issue timestamp
+ *   payload (16 chars) base32 of the issue timestamp plus a random nonce
  *   mac     (10 chars) HMAC-SHA256 of the payload, truncated
  *
  * Why the payload is included: a reference can only be *verified* if the signed
@@ -196,19 +197,19 @@ function sign(payload: string): string {
  * enumerate candidates' references.
  */
 export function issuePaymentReference(_userId: string, now = Date.now()): string {
-  // Exactly 5 bytes = 40 bits, which base32 encodes as exactly 8 characters
-  // with no truncation. (Encoding 6 bytes produced 10 characters that were then
-  // sliced to 8, silently discarding the high bits of the timestamp.)
+  // A random nonce makes separate requests issued in the same second distinct.
+  // The first five bytes retain the timestamp used by the expiry check.
   const issuedAt = Math.floor(now / 1000);
   const bytes = Buffer.alloc(REFERENCE_PAYLOAD_BYTES);
-  bytes.writeUIntBE(issuedAt, 0, REFERENCE_PAYLOAD_BYTES);
+  bytes.writeUIntBE(issuedAt, 0, REFERENCE_TIMESTAMP_BYTES);
+  crypto.randomBytes(REFERENCE_NONCE_BYTES).copy(bytes, REFERENCE_TIMESTAMP_BYTES);
   const payload = base32Encode(bytes);
   return `${REFERENCE_PREFIX}-${payload}-${sign(payload)}`;
 }
 
 export interface ReferenceVerification {
   valid: boolean;
-  reason?: 'malformed' | 'bad_signature';
+  reason?: 'malformed' | 'bad_signature' | 'expired' | 'future_dated';
   issuedAt?: number;
 }
 
@@ -221,7 +222,7 @@ export function verifyPaymentReference(
   reference: string,
   now = Date.now()
 ): ReferenceVerification {
-  const match = new RegExp(`^${REFERENCE_PREFIX}-([A-Z2-7]{8})-([A-F0-9]{10})$`).exec(
+  const match = new RegExp(`^${REFERENCE_PREFIX}-([A-Z2-7]{8}|[A-Z2-7]{16})-([A-F0-9]{10})$`).exec(
     (reference || '').trim().toUpperCase()
   );
   if (!match) return { valid: false, reason: 'malformed' };
@@ -230,13 +231,13 @@ export function verifyPaymentReference(
   if (sign(payload) !== mac) return { valid: false, reason: 'bad_signature' };
 
   const decoded = base32Decode(payload);
-  if (!decoded || decoded.length !== REFERENCE_PAYLOAD_BYTES) {
+  if (!decoded || ![REFERENCE_TIMESTAMP_BYTES, REFERENCE_PAYLOAD_BYTES].includes(decoded.length)) {
     return { valid: false, reason: 'malformed' };
   }
-  const issuedAt = decoded.readUIntBE(0, REFERENCE_PAYLOAD_BYTES);
+  const issuedAt = decoded.readUIntBE(0, REFERENCE_TIMESTAMP_BYTES);
   if (!Number.isFinite(issuedAt)) return { valid: false, reason: 'malformed' };
-
-  void now;
+  if (issuedAt * 1000 > now + 5 * 60 * 1000) return { valid: false, reason: 'future_dated', issuedAt };
+  if (isReferenceExpired(issuedAt, now)) return { valid: false, reason: 'expired', issuedAt };
   return { valid: true, issuedAt };
 }
 

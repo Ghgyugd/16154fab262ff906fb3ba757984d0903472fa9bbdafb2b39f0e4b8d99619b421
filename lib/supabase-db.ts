@@ -144,7 +144,7 @@ function enforceOwner(user: User): User {
 
 export const supabaseDb = {
   async verifyConnection(): Promise<void> {
-    const tables = ['users', 'resumes', 'job_scans', 'applications', 'llm_configs', 'task_bindings', 'system_settings', 'security_logs'];
+    const tables = ['users', 'resumes', 'job_scans', 'applications', 'llm_configs', 'task_bindings', 'system_settings', 'security_logs', 'api_rate_limits', 'manual_payment_records'];
     const results = await Promise.all(tables.map(async (table) => {
       const { error } = await supabase.from(table).select('*', { head: true, count: 'exact' });
       return { table, error };
@@ -159,6 +159,21 @@ export const supabaseDb = {
     }
     const ping = await supabase.rpc('record_session_ping', { p_user_id: probeId, p_seconds: 0 });
     fail(ping.error, 'verify session analytics function');
+    const burstProbe = await supabase.rpc('consume_ip_burst_limit', {
+      p_key_hash: 'invalid',
+      p_max_requests: 1,
+      p_window_seconds: 60,
+    });
+    if (burstProbe.error?.code !== 'P0001') {
+      if (burstProbe.error?.code === 'PGRST202' && process.env.NODE_ENV !== 'production') {
+        console.warn(
+          '[Supabase] Shared IP rate-limit migration is missing. Local development will use an in-memory fallback; apply supabase/migrations/202610070001_shared_ip_rate_limits.sql before deploying.'
+        );
+        return;
+      }
+      fail(burstProbe.error, 'verify shared IP rate-limit function');
+      throw new Error('Supabase shared IP rate-limit function returned an unexpected probe result.');
+    }
   },
 
   async getUser(id: string): Promise<User | null> {
@@ -310,13 +325,33 @@ export const supabaseDb = {
     fail(error, 'record session ping');
   },
 
+  async consumeIpBurstLimit(keyHash: string, maxRequests = 30, windowSeconds = 60): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+    const { data, error } = await supabase.rpc('consume_ip_burst_limit', {
+      p_key_hash: keyHash,
+      p_max_requests: maxRequests,
+      p_window_seconds: windowSeconds,
+    });
+    fail(error, 'consume shared IP rate limit');
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || typeof row.allowed !== 'boolean') {
+      throw new Error('Supabase shared IP rate-limit function returned an invalid result.');
+    }
+    return {
+      allowed: row.allowed,
+      retryAfterSeconds: Math.max(1, Number(row.retry_after_seconds) || windowSeconds),
+    };
+  },
+
   async getStats(): Promise<AdminAnalytics> {
-    const [users, resumes, scans, applications] = await Promise.all([
+    const [users, resumes, scans, applications, paymentsResult] = await Promise.all([
       many<User>(supabase.from('users').select('*'), 'stats users'),
       many<Resume>(supabase.from('resumes').select('*'), 'stats resumes'),
       many<JobScan>(supabase.from('job_scans').select('*'), 'stats scans'),
       many<ApplicationTracker>(supabase.from('applications').select('*'), 'stats applications'),
+      supabase.from('manual_payment_records').select('amount_inr'),
     ]);
+    fail(paymentsResult.error, 'stats verified payments');
+    const payments = paymentsResult.data || [];
     const pro = users.filter((user) => user.currentPlan === 'PRO').length;
     const applicationsByStatus: Record<string, number> = { SAVED: 0, APPLIED: 0, INTERVIEW: 0, OFFER: 0, REJECTED: 0 };
     for (const application of applications) applicationsByStatus[application.status] = (applicationsByStatus[application.status] || 0) + 1;
@@ -326,6 +361,8 @@ export const supabaseDb = {
     return {
       totalUsers: users.length,
       activeProMembers: pro,
+      confirmedRevenueInr: payments.reduce((total, payment) => total + Number(payment.amount_inr || 0), 0),
+      confirmedPaymentCount: payments.length,
       freeMembers: users.length - pro,
       bannedUsers: users.filter((user) => user.isBanned).length,
       adminUsers: users.filter((user) => user.isAdmin || user.role === 'OWNER' || user.role === 'ADMIN').length,
@@ -404,6 +441,44 @@ export const supabaseDb = {
 
   async getSecurityLogs(limit = 50): Promise<SecurityLog[]> {
     return many<SecurityLog>(supabase.from('security_logs').select('*').order('timestamp', { ascending: false }).limit(limit), 'list security logs');
+  },
+
+  async recordManualPayment(input: {
+    id: string;
+    userId: string;
+    amountInr: number;
+    paymentMethod: 'upi' | 'bank_transfer' | 'cash' | 'other';
+    transactionReference: string;
+    paymentRequestReference: string;
+    requiredAmountInr: number;
+    note: string;
+    recordedBy: string;
+  }): Promise<Record<string, unknown>> {
+    const { data, error } = await supabase.rpc('record_manual_payment', {
+      p_id: input.id,
+      p_user_id: input.userId,
+      p_amount_inr: input.amountInr,
+      p_payment_method: input.paymentMethod,
+      p_transaction_reference: input.transactionReference,
+      p_payment_request_reference: input.paymentRequestReference,
+      p_required_amount_inr: input.requiredAmountInr,
+      p_note: input.note,
+      p_recorded_by: input.recordedBy,
+    });
+    fail(error, 'record manual payment');
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error('Supabase did not return the recorded payment.');
+    return row as Record<string, unknown>;
+  },
+
+  async getManualPaymentTotalForRequest(paymentRequestReference: string, userId: string): Promise<number> {
+    const { data, error } = await supabase
+      .from('manual_payment_records')
+      .select('amount_inr')
+      .eq('payment_request_reference', paymentRequestReference)
+      .eq('user_id', userId);
+    fail(error, 'sum verified payments for request');
+    return (data || []).reduce((sum, row) => sum + Number(row.amount_inr || 0), 0);
   },
 
   addSecurityLog,

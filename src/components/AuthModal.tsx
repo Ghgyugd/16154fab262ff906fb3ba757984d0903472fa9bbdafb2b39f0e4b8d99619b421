@@ -117,6 +117,7 @@ const clerkAppearance = {
   elements: {
     // The dialog already provides the surface, padding and shadow.
     rootBox: 'w-full',
+    footer: 'hidden',
     cardBox: 'w-full border-0 bg-transparent p-0 shadow-none',
     card: 'gap-0 p-0',
     headerTitle: {
@@ -267,12 +268,14 @@ export const AuthModal: React.FC = () => {
                   routing="hash"
                   appearance={clerkAppearance}
                   fallbackRedirectUrl={redirectTo}
+                  forceRedirectUrl={redirectTo}
                 />
               ) : (
                 <SignIn
                   routing="hash"
                   appearance={clerkAppearance}
                   fallbackRedirectUrl={redirectTo}
+                  forceRedirectUrl={redirectTo}
                 />
               )}
 

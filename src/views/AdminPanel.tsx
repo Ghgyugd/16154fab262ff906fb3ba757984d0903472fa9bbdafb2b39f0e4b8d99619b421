@@ -101,6 +101,8 @@ interface SystemHealth {
 interface AdminStats {
   totalUsers: number;
   activeProMembers: number;
+  confirmedRevenueInr: number;
+  confirmedPaymentCount: number;
   freeMembers: number;
   bannedUsers: number;
   adminUsers: number;
@@ -140,6 +142,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([]);
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
+  const [confirmingPaymentRequest, setConfirmingPaymentRequest] = useState<string | null>(null);
+  const [paymentDraft, setPaymentDraft] = useState({ amountInr: String(PRO_PRICE_INR), method: 'upi', transactionReference: '', note: '' });
+  const [paymentSaving, setPaymentSaving] = useState(false);
 
   // UI State
   const [loading, setLoading] = useState(true);
@@ -328,6 +333,38 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
       console.error(err);
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleConfirmPayment = async (request: SecurityLog, paymentRequestReference: string) => {
+    if (!request.targetUserId) return;
+    setPaymentSaving(true);
+    try {
+      const res = await fetch('/api/admin/confirm-payment', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          userId: request.targetUserId,
+          paymentRequestReference,
+          amountInr: Number(paymentDraft.amountInr),
+          paymentMethod: paymentDraft.method,
+          transactionReference: paymentDraft.transactionReference,
+          note: paymentDraft.note,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Could not record payment (HTTP ${res.status}).`);
+      const received = Number(data.totalReceivedInr || 0).toLocaleString('en-IN');
+      showToast(data.proActivated
+        ? `₹${received} verified for this request; Pro activated for ${data.user?.email || request.actorEmail || 'user'}.`
+        : `₹${received} recorded. Pro activates after verified payments reach ₹${Number(data.requiredAmountInr || PRO_PRICE_INR).toLocaleString('en-IN')}.`);
+      setConfirmingPaymentRequest(null);
+      setPaymentDraft({ amountInr: String(PRO_PRICE_INR), method: 'upi', transactionReference: '', note: '' });
+      fetchAdminData();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not record the payment.');
+    } finally {
+      setPaymentSaving(false);
     }
   };
 
@@ -802,7 +839,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
       {activeTab === 'analytics' && (
         <div className="space-y-6 animate-in fade-in">
           {/* KPI CARDS (Cohesive color palette) */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {/* Card 1: Total Users & Pro Conversion */}
             <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
               <div className="flex items-center justify-between text-[#627D98]">
@@ -822,14 +859,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
             {/* Card 2: Pro accounts */}
             <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
               <div className="flex items-center justify-between text-[#627D98]">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Pro Accounts</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider">Pro Access</span>
                 <CreditCard className="w-4 h-4 text-[#1D4ED8]" />
               </div>
               <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
                 {stats ? stats.activeProMembers : 'Not available'}
               </div>
               <div className="text-[11px] text-[#627D98]">
-                Manually activated; payment revenue is not tracked
+                Plan status only; it does not confirm payment
+              </div>
+            </div>
+
+            {/* Confirmed receipts, not active Pro flags or upgrade requests. */}
+            <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-line/80 shadow-[0_8px_24px_rgba(11,37,69,0.04)] space-y-1">
+              <div className="flex items-center justify-between text-[#627D98]">
+                <span className="text-[11px] font-bold uppercase tracking-wider">Verified Revenue</span>
+                <CreditCard className="w-4 h-4 text-success" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] font-['Space_Grotesk']">
+                ₹{(stats?.confirmedRevenueInr ?? 0).toLocaleString('en-IN')}
+              </div>
+              <div className="text-[11px] text-[#627D98]">
+                {stats?.confirmedPaymentCount ?? 0} admin-verified receipt{stats?.confirmedPaymentCount === 1 ? '' : 's'} recorded
               </div>
             </div>
 
@@ -1411,11 +1462,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
               </div>
 
               <ul className="space-y-2">
-                {upgradeRequests.map((request) => (
+                {upgradeRequests.map((request) => {
+                  const requestReference = request.details.match(/Reference (RSA-(?:[A-Z2-7]{8}|[A-Z2-7]{16})-[A-F0-9]{10})\./)?.[1] || '';
+                  return (
                   <li
                     key={request.id}
-                    className="rounded-xl border border-line bg-white p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="rounded-xl border border-line bg-white p-3.5 space-y-3"
                   >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-[#0B2545] break-all">
                         {request.actorEmail || 'unknown email'}
@@ -1426,7 +1480,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                       <p className="text-[11px] text-[#627D98] mt-0.5">
                         {new Date(request.timestamp).toLocaleString()}
                       </p>
+                      <p className="text-[11px] text-blue-core font-mono mt-0.5">
+                        Payment request: {requestReference || 'reference unavailable'}
+                      </p>
                     </div>
+                    <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -1441,15 +1499,100 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWorkspace }) => 
                         ? 'Copied UID'
                         : 'Copy UID'}
                     </button>
+                    {requestReference && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(requestReference).then(() => setCopiedUserId(requestReference)).catch(() => {});
+                        }}
+                        className="shrink-0 rounded-lg border border-blue-pale/70 bg-blue-wash/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-core hover:bg-blue-wash transition-colors cursor-pointer"
+                      >
+                        {copiedUserId === requestReference ? 'Copied reference' : 'Copy reference'}
+                      </button>
+                    )}
+                    {requestReference && request.targetUserId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmingPaymentRequest(confirmingPaymentRequest === request.id ? null : request.id);
+                          setPaymentDraft({ amountInr: String(PRO_PRICE_INR), method: 'upi', transactionReference: '', note: '' });
+                        }}
+                        className="shrink-0 rounded-lg bg-[#0B2545] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-blue-core cursor-pointer"
+                      >
+                        {confirmingPaymentRequest === request.id ? 'Close' : 'Record verified payment'}
+                      </button>
+                    )}
+                    </div>
+                    </div>
+                    {confirmingPaymentRequest === request.id && (
+                      <form
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void handleConfirmPayment(request, requestReference);
+                        }}
+                        className="grid gap-3 rounded-xl border border-blue-pale/60 bg-blue-wash/30 p-3 sm:grid-cols-2"
+                      >
+                        <label className="text-[11px] font-semibold text-[#334E68]">
+                          Amount actually received (INR)
+                          <input
+                            required min="1" step="1" type="number" inputMode="numeric"
+                            value={paymentDraft.amountInr}
+                            onChange={(event) => setPaymentDraft((draft) => ({ ...draft, amountInr: event.target.value }))}
+                            className="mt-1 w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm text-[#0B2545]"
+                          />
+                        </label>
+                        <label className="text-[11px] font-semibold text-[#334E68]">
+                          Payment channel
+                          <select
+                            value={paymentDraft.method}
+                            onChange={(event) => setPaymentDraft((draft) => ({ ...draft, method: event.target.value }))}
+                            className="mt-1 w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm text-[#0B2545]"
+                          >
+                            <option value="upi">UPI</option>
+                            <option value="bank_transfer">Bank transfer</option>
+                            <option value="cash">Cash</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </label>
+                        <label className="text-[11px] font-semibold text-[#334E68] sm:col-span-2">
+                          Bank / UPI transaction reference or receipt ID
+                          <input
+                            required minLength={4} maxLength={128} autoComplete="off"
+                            value={paymentDraft.transactionReference}
+                            onChange={(event) => setPaymentDraft((draft) => ({ ...draft, transactionReference: event.target.value }))}
+                            className="mt-1 w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm text-[#0B2545]"
+                          />
+                        </label>
+                        <label className="text-[11px] font-semibold text-[#334E68] sm:col-span-2">
+                          Note (optional)
+                          <input
+                            maxLength={500}
+                            value={paymentDraft.note}
+                            onChange={(event) => setPaymentDraft((draft) => ({ ...draft, note: event.target.value }))}
+                            className="mt-1 w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm text-[#0B2545]"
+                          />
+                        </label>
+                        <p className="text-[11px] leading-relaxed text-[#627D98] sm:col-span-2">
+                          Verify the receipt in your payment app first. Partial receipts are recorded, but Pro activates only after verified payments for this request reach the current monthly price. Duplicate transaction references are rejected.
+                        </p>
+                        <button
+                          type="submit" disabled={paymentSaving}
+                          className="rounded-lg bg-blue-core px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-deep disabled:cursor-wait disabled:opacity-60 sm:col-span-2"
+                        >
+                          {paymentSaving ? 'Recording…' : 'Record payment and activate Pro'}
+                        </button>
+                      </form>
+                    )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
 
               <p className="text-[11px] text-[#334E68] leading-relaxed border-t border-[#93C5FD]/40 pt-3">
-                Activate with <span className="font-bold">Admin -&gt; Set Plan</span> above. Confirm
-                the payment reference the user quotes matches a request in this list before
-                upgrading — a reference cannot be forged, but a hand-written message can claim any
-                email.
+                Telegram is only the contact channel. Verify the bank/UPI receipt and use
+                <span className="font-bold"> Record verified payment</span> to activate Pro and
+                include the exact amount in the revenue ledger. Changing a plan manually does not
+                count as revenue.
               </p>
             </div>
           )}
